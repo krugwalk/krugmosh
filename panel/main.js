@@ -1070,9 +1070,13 @@ async function onStartHelper() {
   btn.disabled = true;
   try {
     const uxp = require("uxp");
-    const folder = await uxp.storage.localFileSystem.getPluginFolder();
-    // The panel lives in datamosh\panel; the helper is one folder up.
-    const root = String(folder.nativePath).replace(/[\\/]+$/, "").replace(/[\\/]panel$/i, "");
+    // Installed copy: config.js says where the datamosh folder is. While developing the
+    // panel lives in datamosh\panel, so the helper is one folder up.
+    let root = String(window.DATAMOSH_HOME || "").replace(/[\\/]+$/, "");
+    if (!root) {
+      const folder = await uxp.storage.localFileSystem.getPluginFolder();
+      root = String(folder.nativePath).replace(/[\\/]+$/, "").replace(/[\\/]panel$/i, "");
+    }
     const target = root + "\\datamosh_helper.pyw";
     const res = await uxp.shell.openPath(target, "Starts the Datamosh helper in the background.");
     if (res) throw new Error(res);

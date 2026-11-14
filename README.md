@@ -9,7 +9,9 @@ first, optionally delete frames around the cut.
 
 ```
 datamosh/
-  panel/            the Premiere panel (UXP): manifest.json, index.html, styles.css, main.js
+  panel/            the Premiere panel (UXP): manifest.json, index.html, styles.css, main.js, config.js
+  install_plugin.bat      package + install the panel into Premiere (Window > UXP Plugins)
+  uninstall_plugin.bat    remove it again
   mosh.py           the moshing engine (also usable from the command line)
   mosh_server.py    local helper the panel talks to (Premiere panels can't run programs)
   datamosh_helper.pyw     the helper, windowless (double-click; logs to helper.log)
@@ -20,6 +22,18 @@ datamosh/
   scripts/          helper_tools.ps1 used by the .bat files
   test-output/      sample clips and results
 ```
+
+## Install into Premiere Pro (permanent)
+
+Double-click **`install_plugin.bat`**. It packages the panel as `build\datamosh.ccx` and
+installs it with Adobe's own plugin installer. Restart Premiere Pro, then open
+**Window > UXP Plugins > Datamosh** any time; no UXP Developer Tools needed.
+
+- After changing the panel, run `install_plugin.bat` again (bump `version` in
+  `panel/manifest.json` if Premiere keeps showing the old one).
+- `uninstall_plugin.bat` removes it.
+- If you also load the panel from UXP Developer Tools, unload it there first: both use
+  the same plugin id.
 
 ## The helper (no window needed)
 

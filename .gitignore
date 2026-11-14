@@ -15,3 +15,6 @@ test-output/*.png
 *.mov
 *.avi
 !test-output/*.mp4
+
+# packaged plugin (made by install_plugin.bat)
+build/
