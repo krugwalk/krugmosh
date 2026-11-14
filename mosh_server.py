@@ -258,6 +258,8 @@ def run_job(job_id, req):
         with LOCK:
             job["state"] = "cancelled"
     except BaseException as e:  # mosh.py uses sys.exit() for tool errors
+        import traceback
+        traceback.print_exc()          # full details (file + line) go to helper.log
         log(f"ERROR: {e}")
         with LOCK:
             job["state"] = "error"

@@ -187,6 +187,26 @@ def block_flow(flow_small, w, h, block):
     return fx, fy
 
 
+def mosh_frame(frame, prev_out, gray, prev_gray, prep, alpha, tracker, gx, gy, w, h, block,
+               decay, refresh):
+    """One tracked frame: move the mask, drag old pixels inside it, carry the trail."""
+    # motion from this frame back to the previous one (where each pixel came from)
+    flow_back = cv2.calcOpticalFlowFarneback(gray, prev_gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+    mask = tracker.step(prep, flow_back)
+    fx, fy = block_flow(flow_back, w, h, block)
+    mx, my = gx + fx, gy + fy
+    # datamosh: old pixels dragged along this frame's motion, block by block
+    dragged = cv2.remap(prev_out, mx, my, cv2.INTER_NEAREST, borderMode=cv2.BORDER_REPLICATE)
+    obj = cv2.GaussianBlur(cv2.resize(mask, (w, h)), (0, 0), 2)
+    carried = cv2.remap(alpha, mx, my, cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT,
+                        borderValue=0) * decay
+    alpha = np.maximum(obj, carried)
+    a = alpha[..., None]
+    moshed = dragged.astype(np.float32) * (1 - refresh) + frame.astype(np.float32) * refresh
+    out = (a * moshed + (1 - a) * frame.astype(np.float32)).astype(np.uint8)
+    return out, alpha
+
+
 def scale_vf(w, h, fps, fmt="rgb24"):
     """Same framing as the mosh encode: fit into w x h, pad, fixed frame rate."""
     return (f"scale={w}:{h}:force_original_aspect_ratio=decrease,pad={w}:{h}:(ow-iw)/2:(oh-ih)/2,"
@@ -229,6 +249,7 @@ def run(ffmpeg, clip, dst, fps, w, h, seed_mask, start_frame, sensitivity=5, tra
     decay = 0.0 if trail <= 0 else float(np.exp(-1.0 / trail))
     gx, gy = np.meshgrid(np.arange(w, dtype=np.float32), np.arange(h, dtype=np.float32))
     prev_out = prev_gray = alpha = None
+    failed_once = False
     n = 0
     size = w * h * 3
     try:
@@ -242,25 +263,21 @@ def run(ffmpeg, clip, dst, fps, w, h, seed_mask, start_frame, sensitivity=5, tra
             small = cv2.resize(frame, (sw, sh), interpolation=cv2.INTER_AREA)
             gray = cv2.cvtColor(small, cv2.COLOR_RGB2GRAY)
             prep = cv2.medianBlur(small, 7)                 # same smoothing as the wand
-            if n < start_frame or prev_out is None:
-                out = frame.copy()
-                if n >= start_frame:                      # the picked frame: effect starts
-                    alpha = cv2.resize(tracker.mask, (w, h))
+            if n < start_frame:
+                out = frame.copy()                        # before the picked frame: untouched
+            elif alpha is None:
+                out = frame.copy()                        # the picked frame: tracking starts here
+                alpha = cv2.resize(tracker.mask, (w, h))
             else:
-                # motion from this frame back to the previous one (where each pixel came from)
-                flow_back = cv2.calcOpticalFlowFarneback(gray, prev_gray, None, 0.5, 3, 15, 3, 5, 1.2, 0)
-                mask = tracker.step(prep, flow_back)
-                fx, fy = block_flow(flow_back, w, h, block)
-                mx, my = gx + fx, gy + fy
-                # datamosh: old pixels dragged along this frame's motion, block by block
-                dragged = cv2.remap(prev_out, mx, my, cv2.INTER_NEAREST, borderMode=cv2.BORDER_REPLICATE)
-                obj = cv2.GaussianBlur(cv2.resize(mask, (w, h)), (0, 0), 2)
-                carried = cv2.remap(alpha, mx, my, cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT,
-                                    borderValue=0) * decay
-                alpha = np.maximum(obj, carried)
-                a = alpha[..., None]
-                moshed = dragged.astype(np.float32) * (1 - refresh) + frame.astype(np.float32) * refresh
-                out = (a * moshed + (1 - a) * frame.astype(np.float32)).astype(np.uint8)
+                try:
+                    out, alpha = mosh_frame(frame, prev_out, gray, prev_gray, prep, alpha, tracker,
+                                            gx, gy, w, h, block, decay, refresh)
+                except cv2.error as e:
+                    # one bad frame (e.g. a sudden cut) mustn't kill the whole render
+                    out = frame.copy()
+                    if not failed_once:
+                        log(f"  (frame {n}: tracking hiccup, passed through: {str(e)[:80]})")
+                        failed_once = True
             writer.stdin.write(out.tobytes())
             prev_out, prev_gray = out, gray
             n += 1
