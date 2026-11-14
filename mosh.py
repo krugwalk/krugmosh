@@ -399,6 +399,7 @@ def smear(kept, frames_n, repeat):
 
 AUDIO_RATE = 48000
 AUDIO_BYTES = 4          # s16le stereo: 2 bytes x 2 channels per sample
+DECLICK_MS = 5           # fade length at every audio splice (removes the "pop")
 
 
 def clip_audio(ffmpeg, clip):
@@ -431,11 +432,29 @@ def build_audio(ffmpeg, clips, origins, fps, dst):
             sources[o[0]] = clip_audio(ffmpeg, clips[o[0]])
     if not any(sources.values()):
         return False
-    out = bytearray()
+    # Group frames into runs that play straight through in the source (same clip, frame
+    # after frame) or are silent. Each run is copied in one piece, so there's no per-frame
+    # rounding (at 29.97 fps a frame is 1601.6 samples) that would skip or repeat samples.
+    runs = []                                  # [first_out_frame, n_frames, origin or None]
     for n, o in enumerate(origins):
-        # exact sample positions (no drift): this frame covers samples [a, b) of the output
-        a, b = round(n * per_frame), round((n + 1) * per_frame)
+        if runs:
+            r = runs[-1]
+            if o is None and r[2] is None:
+                r[1] += 1
+                continue
+            if (o is not None and r[2] is not None and o[0] == r[2][0]
+                    and o[1] == r[2][1] + r[1]):
+                r[1] += 1
+                continue
+        runs.append([n, 1, o])
+
+    out = bytearray()
+    bounds = []                                # output sample positions where audio jumps
+    for first, count, o in runs:
+        a, b = round(first * per_frame), round((first + count) * per_frame)
         length = (b - a) * AUDIO_BYTES
+        if a:
+            bounds.append(a)
         if o is None:
             out += bytes(length)
             continue
@@ -443,6 +462,23 @@ def build_audio(ffmpeg, clips, origins, fps, dst):
         s = round(o[1] * per_frame) * AUDIO_BYTES
         chunk = src[s:s + length]
         out += chunk + bytes(length - len(chunk))          # pad if the source runs short
+
+    # De-click: a short fade out / fade in at every jump, so the waveform never leaps
+    # from one value to another in a single sample (that leap is the "pop").
+    import array
+    pcm = array.array("h", bytes(out))
+    total = len(pcm) // 2                      # stereo sample frames
+    fade = int(AUDIO_RATE * DECLICK_MS / 1000)
+    for pos in bounds:
+        f = min(fade, pos, total - pos)
+        for k in range(f):
+            g = k / f                          # 0 at the jump -> 1 away from it
+            for c in (0, 1):
+                i_out = (pos - 1 - k) * 2 + c  # before the jump: fading out
+                i_in = (pos + k) * 2 + c       # after the jump: fading in
+                pcm[i_out] = int(pcm[i_out] * g)
+                pcm[i_in] = int(pcm[i_in] * g)
+    out = pcm.tobytes()
     with wave.open(str(dst), "wb") as w:
         w.setnchannels(2)
         w.setsampwidth(2)
