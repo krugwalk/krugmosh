@@ -36,7 +36,7 @@ const DEFAULTS = {
   trimA: 0, trimB: 0, quant: 2, healAfter: 0, gop: 999, bloomOn: false, bloom: 150, bloomAt: 0, bloomWhich: "auto", bloomSmooth: true,
   smearFrames: 0, smearRepeat: 3, acidOn: false, acidStyle: "prism", spin: 30, objectsOn: true, detail: 6, sat: 300, contrast: 150, brightness: 0, hueJump: 0,
   posterize: 0, neon: false, onlyJoins: false, useRange: false,
-  keepAvi: false, mode: "auto", showMarkers: false, source: "timeline",
+  keepAvi: false, audioOn: true, mode: "auto", showMarkers: false, source: "timeline",
 };
 const SETTINGS_KEY = "datamosh.settings.v1";
 
@@ -85,6 +85,7 @@ function readSettings() {
     onlyJoins: $("onlyJoins").checked,
     useRange: $("useRange").checked,
     keepAvi: $("keepAvi").checked,
+    audioOn: $("audioOn").checked,
     mode: state.mode,
     showMarkers: $("showMarkers").checked,
     source: state.source,
@@ -121,6 +122,7 @@ function applySettings(s) {
   $("onlyJoins").checked = !!s.onlyJoins;
   $("useRange").checked = !!s.useRange;
   $("keepAvi").checked = !!s.keepAvi;
+  $("audioOn").checked = s.audioOn !== false;
   $("showMarkers").checked = !!s.showMarkers;
   setSource(s.source, true);
   setMode(s.mode === "manual" ? "manual" : "auto", true);
@@ -750,7 +752,7 @@ function updateMoshButton() {
   $("app").className = "app" + (state.busy ? " busy" : "");
   ["trimA", "trimB", "quant", "healAfter", "gop", "bloom", "bloomAt", "bloomOn", "bloomSmooth", "bwAuto", "bwAfter", "bwPlayhead",
    "btnUsePlayhead", "smearFrames", "smearRepeat", "acidOn", "sat", "contrast", "brightness", "hueJump", "spin", "detail", "objectsOn", "stPrism", "stPure", "stTint",
-   "posterize", "neon", "btnAcidPreset", "onlyJoins", "useRange", "keepAvi", "btnRefresh",
+   "posterize", "neon", "btnAcidPreset", "onlyJoins", "useRange", "keepAvi", "audioOn", "btnRefresh",
    "btnReset", "modeAuto", "modeManual", "srcTimeline", "srcOriginal", "pickAll", "pickCuts", "pickNone", "showMarkers",
    "btnClearMarkers", "btnMarkNow"].forEach((id) => {
     $(id).disabled = state.busy;
@@ -876,6 +878,7 @@ function showResult(result, jobId, placedText) {
     ["Keyframes removed", String(result.iframes_removed)],
     ...(result.bloomed ? [["Bloom", "+" + result.bloomed + " frames"]] : []),
     ...(result.smeared ? [["Smear boost", "+" + result.smeared + " frames"]] : []),
+    ["Audio", result.audio ? "included, in sync" : "none"],
     ["Size", result.width + "×" + result.height + " @ " + result.fps.toFixed(3) + " fps"],
   ];
   if (placedText) parts.push(["Timeline", placedText]);
@@ -890,7 +893,7 @@ function showResult(result, jobId, placedText) {
 // ------------------------------------------------------------------ helper
 
 // The helper version this panel needs (matches VERSION in mosh_server.py).
-const HELPER_VERSION = 9;
+const HELPER_VERSION = 10;
 
 async function checkHelper() {
   let ok = false;
@@ -1135,7 +1138,23 @@ async function findProjectItemByPath(folder, target, depth) {
 }
 
 /** Import the moshed file and put it on the track above the selected clips. */
-async function placeResult(outputPath) {
+/** First audio track with nothing on it between t0 and t1 (seconds), or -1. */
+async function freeAudioTrack(sequence, t0, t1) {
+  const n = await sequence.getAudioTrackCount();
+  for (let i = 0; i < n; i++) {
+    const track = await sequence.getAudioTrack(i);
+    let busy = false;
+    for (const item of track.getTrackItems(ppro.Constants.TrackItemType.CLIP, false)) {
+      const s = (await item.getStartTime()).seconds;
+      const e = (await item.getEndTime()).seconds;
+      if (s < t1 - 1e-3 && e > t0 + 1e-3) { busy = true; break; }
+    }
+    if (!busy) return i;
+  }
+  return -1;
+}
+
+async function placeResult(outputPath, seconds) {
   if (PREVIEW) {
     logLine("(preview mode: would import into Premiere now)");
     return "preview mode, not placed";
@@ -1149,22 +1168,36 @@ async function placeResult(outputPath) {
   if (!projectItem) throw new Error("Imported, but couldn't find the clip in the project panel.");
 
   const first = state.clips[0];
-  const targetTrack = Math.max(...state.clips.map((c) => c.track)) + 1;
-  const trackCount = await sequence.getVideoTrackCount();
-  const time = ppro.TickTime.createWithSeconds(first.timelineStart);
+  const t0 = first.timelineStart;
+  const t1 = t0 + (seconds || 0);
+  let vTrack = Math.max(...state.clips.map((c) => c.track)) + 1;   // right above the clips
+  const vCount = await sequence.getVideoTrackCount();
+  const aCount = await sequence.getAudioTrackCount();
+  // Audio must never overwrite existing audio: use an audio track that's empty there.
+  let aTrack = await freeAudioTrack(sequence, t0, t1);
+  let insert = vTrack >= vCount;            // inserting is what creates new tracks
+  if (aTrack === -1) {
+    // no free audio track: put both on brand-new tracks (an insert on new, empty
+    // tracks shifts nothing)
+    aTrack = aCount;
+    vTrack = Math.max(vTrack, vCount);
+    insert = true;
+  }
+  const time = ppro.TickTime.createWithSeconds(t0);
   const editor = ppro.SequenceEditor.getEditor(sequence);
 
   let placed = false;
   project.lockedAccess(() => {
     placed = project.executeTransaction((compound) => {
-      const action = targetTrack < trackCount
-        ? editor.createOverwriteItemAction(projectItem, time, targetTrack, 0)
-        : editor.createInsertProjectItemAction(projectItem, time, targetTrack, 0, true);
+      const action = insert
+        ? editor.createInsertProjectItemAction(projectItem, time, vTrack, aTrack, true)
+        : editor.createOverwriteItemAction(projectItem, time, vTrack, aTrack);
       compound.addAction(action);
     }, "Datamosh");
   });
   if (!placed) throw new Error("Couldn't place the clip on the timeline (it is in the project panel).");
-  const where = `V${targetTrack + 1} at ${first.timelineStart.toFixed(2)}s`;
+  const where = `V${vTrack + 1}` + (state.lastHadAudio ? ` + A${aTrack + 1}` : "") +
+                ` at ${t0.toFixed(2)}s`;
   logLine("Placed on " + where);
   return where;
 }
@@ -1467,6 +1500,7 @@ async function onMosh() {
     const s = readSettings();
     const body = Object.assign(await commonBody(), {
       trimA: s.trimA, onlyJoins: s.onlyJoins, keepAvi: s.keepAvi,
+      audio: s.audioOn,
       bloom: s.bloomOn ? s.bloom : 0, bloomAt: s.bloomAt,
       bloomAuto: s.bloomWhich === "auto", bloomSmooth: s.bloomSmooth,
       bloomCuts: state.bloomCuts.slice(),
@@ -1490,7 +1524,8 @@ async function onMosh() {
     const { result, job } = await runHelperJob(body, "mosh");
     setStatus("Importing into Premiere…", "busy");
     setProgress(0.97);
-    const placed = await placeResult(result.output);
+    state.lastHadAudio = !!result.audio;
+    const placed = await placeResult(result.output, result.seconds);
     setProgress(1, "ok");
     setStatus("Done", "ok");
     showResult(result, job, placed);
@@ -1514,7 +1549,7 @@ SLIDERS.forEach((id) => {
   $(id).addEventListener("input", () => { updateValueLabels(); saveSettings(); });
   $(id).addEventListener("change", () => { updateValueLabels(); saveSettings(); });
 });
-["onlyJoins", "useRange", "keepAvi"].forEach((id) => $(id).addEventListener("change", saveSettings));
+["onlyJoins", "useRange", "keepAvi", "audioOn"].forEach((id) => $(id).addEventListener("change", saveSettings));
 $("bloomOn").addEventListener("change", () => { showBloomOpts(); saveSettings(); renderClips(state.lastWarnings); });
 $("bloomSmooth").addEventListener("change", saveSettings);
 $("acidOn").addEventListener("change", () => { showAcidOpts(); saveSettings(); });

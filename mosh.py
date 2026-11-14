@@ -397,6 +397,68 @@ def smear(kept, frames_n, repeat):
     return out, added
 
 
+AUDIO_RATE = 48000
+AUDIO_BYTES = 4          # s16le stereo: 2 bytes x 2 channels per sample
+
+
+def clip_audio(ffmpeg, clip):
+    """A clip's audio (its start/length range) as raw 48 kHz stereo s16le, or b'' if none."""
+    rng = []
+    if clip.get("start"):
+        rng += ["-ss", f"{clip['start']:.6f}"]
+    if clip.get("duration"):
+        rng += ["-t", f"{clip['duration']:.6f}"]
+    r = subprocess.run([ffmpeg, "-v", "error", *rng, "-i", str(clip["path"]), "-vn",
+                        "-ac", "2", "-ar", str(AUDIO_RATE), "-f", "s16le", "-"],
+                       capture_output=True, stdin=subprocess.DEVNULL,
+                       creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    return r.stdout if r.returncode == 0 else b""
+
+
+def build_audio(ffmpeg, clips, origins, fps, dst):
+    """Audio that stays in sync with the moshed picture.
+
+    For every output frame, the audio slice of the source frame it came from: deleted
+    keyframes and trims cut their slices out, smear repeats repeat their slices (a glitchy
+    stutter like the picture), bloom inserts (origin None) are silent.
+    Returns False when none of the clips has audio.
+    """
+    import wave
+    per_frame = AUDIO_RATE / float(fps)
+    sources = {}
+    for o in origins:
+        if o is not None and o[0] not in sources:
+            sources[o[0]] = clip_audio(ffmpeg, clips[o[0]])
+    if not any(sources.values()):
+        return False
+    out = bytearray()
+    for n, o in enumerate(origins):
+        # exact sample positions (no drift): this frame covers samples [a, b) of the output
+        a, b = round(n * per_frame), round((n + 1) * per_frame)
+        length = (b - a) * AUDIO_BYTES
+        if o is None:
+            out += bytes(length)
+            continue
+        src = sources.get(o[0], b"")
+        s = round(o[1] * per_frame) * AUDIO_BYTES
+        chunk = src[s:s + length]
+        out += chunk + bytes(length - len(chunk))          # pad if the source runs short
+    with wave.open(str(dst), "wb") as w:
+        w.setnchannels(2)
+        w.setsampwidth(2)
+        w.setframerate(AUDIO_RATE)
+        w.writeframes(bytes(out))
+    return True
+
+
+def add_audio(ffmpeg, video, wav):
+    """Put the audio into the finished .mov (video copied, untouched)."""
+    tmp = Path(video).with_name(Path(video).stem + ".withaudio.mov")
+    run([ffmpeg, "-y", "-v", "error", "-i", str(video), "-i", str(wav), "-map", "0:v:0",
+         "-map", "1:a:0", "-c:v", "copy", "-c:a", "pcm_s16le", str(tmp)])
+    Path(tmp).replace(video)
+
+
 def mosh(clips, trim_a, trim_b, only_joins=False, drops=None, cuts=None, blooms=None,
          smear_frames=0, smear_repeat=1):
     """Steps 2 and 3: delete keyframes and trim around moshed cuts.
@@ -418,15 +480,17 @@ def mosh(clips, trim_a, trim_b, only_joins=False, drops=None, cuts=None, blooms=
     for ci, frames in enumerate(clips):
         cut_in = ci > 0 and (cuts[ci - 1] if ci - 1 < len(cuts) else True)
         cut_out = ci < last and (cuts[ci] if ci < len(cuts) else True)
+        # entries are (type, payload, origin): origin = (clip, frame) it came from, so the
+        # audio can follow; bloom inserts have origin None (silence there)
         kept = []
         bloom = blooms.get(ci)
         for fi, (ftype, payload) in enumerate(frames):
             if (ci, fi) in drops:
                 removed += 1
                 continue
-            kept.append((ftype, payload))
+            kept.append((ftype, payload, (ci, fi)))
             if bloom and fi == bloom[0]:
-                kept.extend(bloom[1])
+                kept.extend((t, p, None) for t, p in bloom[1])
                 bloomed += len(bloom[1])
         if cut_in and trim_b:
             kept = kept[min(trim_b, len(kept) - 1):]
@@ -442,7 +506,8 @@ def mosh(clips, trim_a, trim_b, only_joins=False, drops=None, cuts=None, blooms=
         out.extend(kept)
     mosh.last_bloomed = bloomed
     mosh.last_smeared = smeared
-    return out, removed, joins, mosh_joins
+    mosh.last_origins = [o for _, _, o in out]       # for build_audio()
+    return [(t, p) for t, p, _ in out], removed, joins, mosh_joins
 
 
 # ------------------------------------------------------------------------------ main
@@ -554,7 +619,7 @@ def mosh_clips(clips, output, trim_a=0, trim_b=0, only_joins=False, quant=2,
                mode="auto", cuts=None, heal_after=0, keyframes=None, frame_range=None,
                timeline_starts=None, gop=999, bloom=0, bloom_at=0, bloom_auto=True,
                bloom_smooth=True, bloom_points=None, bloom_cuts=None,
-               smear_frames=0, smear_repeat=1, color=None):
+               smear_frames=0, smear_repeat=1, color=None, audio=True):
     """Run the whole pipeline.
 
     clips: list of dicts {"path": str, "start": seconds or None, "duration": seconds or None}
@@ -578,6 +643,7 @@ def mosh_clips(clips, output, trim_a=0, trim_b=0, only_joins=False, quant=2,
     smear_frames / smear_repeat: smear boost: the first N motion frames after each moshed
                   cut are each repeated this many times (heavier drag; 0 / 1 = off)
     color:        acid colour, see color_filter() (None = off)
+    audio:        include the clips' audio, kept in sync (see build_audio())
                   instead of one per cut
     Returns a summary dict.
     """
@@ -636,6 +702,8 @@ def mosh_clips(clips, output, trim_a=0, trim_b=0, only_joins=False, quant=2,
                                                   blooms=blooms, smear_frames=int(smear_frames),
                                                   smear_repeat=int(smear_repeat))
         bloomed = getattr(mosh, "last_bloomed", 0)
+        origins = getattr(mosh, "last_origins", [])
+        has_audio = False
         smeared = getattr(mosh, "last_smeared", 0)
         log(f"Deleted {removed} I-frame(s); {len(frames)} frames remain")
         if smeared:
@@ -657,6 +725,15 @@ def mosh_clips(clips, output, trim_a=0, trim_b=0, only_joins=False, quant=2,
             log("Converting to ProRes...")
             decode_to_prores(ffmpeg, moshed, output, f, soften=bool(blooms) and bloom_smooth,
                              color=color, joins=joins, size=(w, h))
+            if audio:
+                check_cancel()
+                log("Adding audio...")
+                wav = Path(tmp) / "audio.wav"
+                if build_audio(ffmpeg, clips, origins, f, wav):
+                    add_audio(ffmpeg, output, wav)
+                    has_audio = True
+                else:
+                    log("  (the clips have no audio)")
             log(f"Wrote {output}")
         offsets = None
         focus = (mosh_joins or joins or [0])[0]
@@ -670,7 +747,7 @@ def mosh_clips(clips, output, trim_a=0, trim_b=0, only_joins=False, quant=2,
         return {"output": str(output), "frames": len(frames), "iframes_removed": removed,
                 "fps": float(f), "width": w, "height": h, "joins": joins,
                 "moshJoins": mosh_joins, "seconds": len(frames) / float(f), "bloomed": bloomed,
-                "smeared": smeared,
+                "smeared": smeared, "audio": has_audio,
                 "preview": str(preview) if offsets else None, "previewOffsets": offsets,
                 "avi": str(avi) if avi else None}
     return _guarded(work, [output, avi], cancel)
@@ -721,6 +798,7 @@ def main():
     ap.add_argument("--smear", type=int, default=0,
                     help="smear boost: first N motion frames after each cut get repeated")
     ap.add_argument("--smear-x", type=int, default=3, help="...this many times each (default 3)")
+    ap.add_argument("--no-audio", action="store_true", help="leave the audio out")
     ap.add_argument("--acid", action="store_true", help="acid colour on the result")
     ap.add_argument("--sat", type=float, default=3.0, help="acid: saturation (1 = normal)")
     ap.add_argument("--contrast", type=float, default=1.5, help="acid: contrast (1 = normal)")
@@ -787,6 +865,7 @@ def main():
                bloom_cuts=([(i + 1) in {int(x) for x in args.bloom_cuts.split(",") if x.strip()}
                             for i in range(len(clips) - 1)] if args.bloom_cuts else None),
                smear_frames=args.smear, smear_repeat=args.smear_x,
+               audio=not args.no_audio,
                color=({"sat": args.sat, "contrast": args.contrast, "brightness": args.brightness,
                        "hue_jump": args.hue_jump, "style": args.style, "spin": args.spin, "regions": args.regions, "objects": args.objects, "detail": args.detail, "families": args.families,
                        "clock": "objects" if args.per_object else "colors",

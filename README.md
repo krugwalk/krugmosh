@@ -83,6 +83,7 @@ Hover any setting in the panel to see what it does. Settings are remembered betw
 | **Smear boost** / **Smear strength** | Glitch section. Right after each moshed cut, the first N motion frames are each played *strength* times, so the whole movement is replayed and the old picture is dragged much harder. |
 | **Acid colour** | Glitch section. Style: **Prism** (brightness mapped onto a rainbow: many pure colours per frame), **Pure colours** (clipped to primaries) or **Tint**. **Hue spin** turns all colours around the wheel every frame like a fast clock (30°/frame ≈ 3 turns a second). **Colour clocks** gives every original colour its own clock: everything that was the same colour (a red shirt, white text, a blue sky) cycles together, different colours cycle at their own speed and direction; **Colours** sets how many colour families (3–12, plus darks / mids / lights). Needs `python -m pip install numpy opencv-python-headless`. |
 | **⚡ Acid preset** | One click towards the fast-cut neon glitch look: every cut moshed, raw bloom 8 on the strongest motion, smear boost 10 ×3, Pure colours 600% / 180% / brightness +5 / posterize 3, every colour on its own clock (30°/frame). Works best with many short, very different shots that have lots of movement. |
+| **Include audio** | On by default. The moshed clip carries the clips' audio, kept frame-accurately in sync: removed keyframes and trims cut the matching audio, smear boost stutters it like the picture, bloom inserts silence. On the timeline it goes on an audio track that is empty at that spot (or a new track), so existing audio is never overwritten. |
 | **GOP size** | Longest gap between keyframes when encoding. 999 (default, like the tutorial) = keyframes only at scene changes. Lower values (e.g. 30) add regular keyframes, giving Pick mode more points to choose from. |
 
 | Control | What it does | Avidemux equivalent |
@@ -111,6 +112,7 @@ python mosh.py a.mp4 b.mp4 -o out.mov --bloom 500                  # bloom the s
 python mosh.py a.mp4 b.mp4 -o out.mov --bloom 500 --bloom-point 1:45   # bloom clip 2, frame 45
 python mosh.py a.mp4 b.mp4 -o out.mov --bloom 500 --bloom-raw      # harsher, un-smoothed bloom
 python mosh.py a.mp4 b.mp4 c.mp4 -o out.mov --smear 10 --smear-x 3 --acid --neon   # glitch look
+python mosh.py a.mp4 b.mp4 -o out.mov --no-audio                   # picture only
 python mosh.py a.mp4 b.mp4 --scan --gop 30                         # keyframe at least every 30 frames
 ```
 
@@ -126,6 +128,5 @@ open the panel with `?port=8766`.
 
 ## Known limits (v0.4)
 
-- No audio in the moshed clip; your original audio stays on the timeline.
 - In **Original media** mode, effects and speed changes are ignored (use **As on timeline**).
 - In **Original media** mode, nested sequences / graphics can't be moshed (no media file).

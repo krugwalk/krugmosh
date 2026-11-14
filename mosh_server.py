@@ -30,7 +30,7 @@ from pathlib import Path
 import mosh
 
 HOST, PORT = "127.0.0.1", int(os.environ.get("DATAMOSH_PORT", "8765"))
-VERSION = 9  # bump when the panel needs new helper features (panel checks this)
+VERSION = 10  # bump when the panel needs new helper features (panel checks this)
 JOBS = {}      # id -> JSON-safe job state
 CANCELS = {}   # id -> threading.Event
 LOCK = threading.Lock()
@@ -143,6 +143,7 @@ def run_job(job_id, req):
                 smear_frames=int(req.get("smearFrames", 0)),
                 smear_repeat=int(req.get("smearRepeat", 1)),
                 color=req.get("color") or None,
+                audio=bool(req.get("audio", True)),
                 **common)
         with LOCK:
             job["result"] = result
