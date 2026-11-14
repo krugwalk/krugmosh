@@ -427,6 +427,15 @@ button { font-family: inherit; cursor: pointer; }
   margin-left: 20px;
 }
 .bloom-seg { margin-top: 6px; }
+.pick-wrap { margin-top: 6px; }
+.pick-img {
+  display: block;
+  width: 100%;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+  background-color: #000000;
+  cursor: crosshair;
+}
 .glitch-head {
   display: flex;
   flex-direction: row;

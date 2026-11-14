@@ -29,8 +29,13 @@ from pathlib import Path
 
 import mosh
 
+try:
+    import numpy as np   # targeted mosh (optional)
+except ImportError:
+    np = None
+
 HOST, PORT = "127.0.0.1", int(os.environ.get("DATAMOSH_PORT", "8765"))
-VERSION = 10  # bump when the panel needs new helper features (panel checks this)
+VERSION = 11  # bump when the panel needs new helper features (panel checks this)
 JOBS = {}      # id -> JSON-safe job state
 CANCELS = {}   # id -> threading.Event
 LOCK = threading.Lock()
@@ -91,6 +96,94 @@ def wait_for_file(path, log, cancel, timeout=1800):
     raise TimeoutError(f"{p.name} never finished writing")
 
 
+# ------------------------------------------------------------------ targeted mosh
+PICKS = {}      # pick id -> {"frame", "prep", "clicks", "sens", "clip", "offset", "size", "fps"}
+
+
+def pick_size_fps(req):
+    """Output size and frame rate for a targeted mosh: the sequence's, else the clip's."""
+    clip = req["clip"]
+    w, h, src_fps = mosh.probe(mosh.find_tool("ffprobe"), clip["path"])
+    if req.get("size"):
+        w, h = (int(v) for v in req["size"])
+    fps = mosh.parse_fps(req["fps"]) if req.get("fps") else src_fps
+    return w - w % 2, h - h % 2, fps
+
+
+def new_pick(req):
+    import target
+    w, h, fps = pick_size_fps(req)
+    offset = float(req.get("offset", 0))
+    frame = target.grab_frame(mosh.find_tool("ffmpeg"), req["clip"], offset, w, h, fps,
+                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    pid = uuid.uuid4().hex[:8]
+    PICKS[pid] = {"frame": frame, "prep": target.wand_prep(frame), "clicks": [],
+                  "sens": int(req.get("sensitivity", 4)), "clip": req["clip"], "offset": offset,
+                  "size": (w, h), "fps": fps}
+    return pid
+
+
+def pick_mask(p):
+    import target
+    if not p["clicks"]:
+        return np.zeros(p["prep"].shape[:2], np.float32)
+    return target.wand(p["prep"], p["clicks"], p["sens"])
+
+
+def pick_info(pid):
+    p = PICKS[pid]
+    m = pick_mask(p)
+    return {"pick": pid, "clicks": len(p["clicks"]), "coverage": round(float(m.mean()) * 100, 1),
+            "sensitivity": p["sens"], "width": p["size"][0], "height": p["size"][1]}
+
+
+def run_target(job_id, req, output, log):
+    """Targeted mosh of one clip: only the picked object (and its trail) gets moshed."""
+    import target
+    p = PICKS.get(req.get("pick"))
+    if not p or not p["clicks"]:
+        raise ValueError("No object picked (pick it again: the helper may have restarted).")
+    ffmpeg = mosh.find_tool("ffmpeg")
+    w, h = p["size"]
+    fps = p["fps"]
+    clip = p["clip"]
+    seed = pick_mask(p)
+    start_frame = int(round(p["offset"] * float(fps)))
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    ev = CANCELS[job_id]
+    output.parent.mkdir(parents=True, exist_ok=True)
+    log(f"Targeted mosh: tracking the object from {p['offset']:.2f}s, "
+        f"trail {req.get('trail', 30)} frames, blocks {req.get('block', 16)}px")
+    try:
+        n = target.run(ffmpeg, clip, output, fps, w, h, seed, start_frame,
+                       sensitivity=p["sens"], trail=int(req.get("trail", 30)),
+                       block=int(req.get("block", 16)), refresh=float(req.get("refresh", 0.03)),
+                       log=log, cancelled=ev.is_set, creationflags=flags,
+                       vf_scale=target.scale_vf(w, h, fps))
+    except RuntimeError:
+        if ev.is_set():
+            if output.exists():
+                output.unlink()
+            raise mosh.Cancelled("cancelled")
+        raise
+    has_audio = False
+    if req.get("audio", True):
+        log("Adding audio...")
+        wav = PREVIEW_DIR / f"{job_id}.wav"
+        if mosh.build_audio(ffmpeg, [clip], [(0, i) for i in range(n)], fps, wav):
+            mosh.add_audio(ffmpeg, output, wav)
+            has_audio = True
+        wav.unlink(missing_ok=True)
+    log(f"Wrote {output}")
+    log("Making preview...")
+    offsets = mosh.make_preview(ffmpeg, output, min(start_frame + 10, n - 1), n,
+                                PREVIEW_DIR / f"{job_id}.png")
+    return {"output": str(output), "frames": n, "iframes_removed": 0, "fps": float(fps),
+            "width": w, "height": h, "joins": [], "moshJoins": [], "seconds": n / float(fps),
+            "bloomed": 0, "smeared": 0, "audio": has_audio, "targeted": True,
+            "preview": str(PREVIEW_DIR / f"{job_id}.png"), "previewOffsets": offsets, "avi": None}
+
+
 def run_job(job_id, req):
     job = JOBS[job_id]
 
@@ -100,6 +193,18 @@ def run_job(job_id, req):
         print(f"[{job_id}] {msg}", flush=True)
 
     try:
+        if job["kind"] == "target":
+            pk = PICKS.get(req.get("pick"))
+            if pk and req.get("rendered"):
+                wait_for_file(pk["clip"]["path"], log, CANCELS[job_id])
+            out_dir = Path(req.get("outputDir") or Path.home() / "Videos" / "Datamosh Renders")
+            output = out_dir / f"moshed_target_{datetime.now():%Y%m%d_%H%M%S}.mov"
+            PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
+            result = run_target(job_id, req, output, log)
+            with LOCK:
+                job["result"] = result
+                job["state"] = "done"
+            return
         clips = req["clips"]
         if not clips:
             raise ValueError("no clips")
@@ -227,6 +332,25 @@ class Handler(BaseHTTPRequestHandler):
             except Exception as e:
                 return self._send(500, {"error": str(e)})
 
+        if self.path.startswith("/pick/") and "/image.png" in self.path:
+            pid = self.path.split("/")[2]
+            p = PICKS.get(pid)
+            if not p:
+                return self._send(404, {"error": "unknown pick"})
+            import cv2
+            import target
+            img = target.wand_overlay(p["frame"], pick_mask(p))
+            ok, png = cv2.imencode(".png", cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+            body = png.tobytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "image/png")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self._cors()
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
         job_id, job, action = self._job_route()
         if not job:
             return self._send(404, {"error": "not found"})
@@ -244,8 +368,35 @@ class Handler(BaseHTTPRequestHandler):
                 return self._send_file(thumb, "image/png")
         return self._send(404, {"error": "not found"})
 
+    def _body(self):
+        length = int(self.headers.get("Content-Length", 0))
+        return json.loads(self.rfile.read(length) or b"{}")
+
     def do_POST(self):
-        if self.path in ("/mosh", "/scan"):
+        if self.path == "/pick" or self.path.startswith("/pick/"):
+            # targeted mosh: load a frame to pick from, then click / undo / clear / sensitivity
+            try:
+                req = self._body()
+                if self.path == "/pick":
+                    return self._send(200, pick_info(new_pick(req)))
+                pid = self.path.split("/")[2]
+                p = PICKS.get(pid)
+                if not p:
+                    return self._send(404, {"error": "unknown pick (pick the object again)"})
+                if "click" in req:
+                    x, y = (float(v) for v in req["click"])
+                    p["clicks"].append((min(1.0, max(0.0, x)), min(1.0, max(0.0, y))))
+                if req.get("undo") and p["clicks"]:
+                    p["clicks"].pop()
+                if req.get("clear"):
+                    p["clicks"].clear()
+                if "sensitivity" in req:
+                    p["sens"] = max(1, min(10, int(req["sensitivity"])))
+                return self._send(200, pick_info(pid))
+            except Exception as e:
+                return self._send(500, {"error": str(e)})
+
+        if self.path in ("/mosh", "/scan", "/target"):
             try:
                 length = int(self.headers.get("Content-Length", 0))
                 req = json.loads(self.rfile.read(length) or b"{}")

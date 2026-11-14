@@ -255,6 +255,57 @@
         </label>
       </div>
 
+      <!-- targeted mosh: only a picked, tracked object -->
+      <div class="glitch-head">
+        <span class="section-label">Targeted mosh</span>
+      </div>
+      <label class="check" data-help="Targeted mosh: pick an object in one frame; it is tracked through the clip and ONLY it gets moshed (its pixels dragged along its motion in blocks), leaving a smeared trail behind it that fades out. Everything else stays clean. MOSH IT then makes this instead of the cut mosh.">
+        <input id="targetOn" type="checkbox"> Only mosh a picked object (tracked)
+      </label>
+      <div id="targetOpts" class="bloom-opts hidden">
+        <div class="timeline-row">
+          <button id="btnPick" class="btn-small" data-help="Loads the frame under the playhead (inside one of the selected clips) so you can click the object.">Pick object</button>
+          <span class="quick">
+            <button id="btnPickUndo" class="btn-link" data-help="Remove the last click.">Undo</button>
+            <button id="btnPickClear" class="btn-link" data-help="Start the selection over.">Clear</button>
+          </span>
+        </div>
+        <div id="pickNote" class="sub-info">Put the playhead on a frame where the object is clearly visible, then click Pick object.</div>
+        <div id="pickWrap" class="pick-wrap hidden"><img id="pickImg" class="pick-img" alt=""></div>
+        <div class="control" data-help="Sensitivity: how different a colour may be and still join the selection when you click. Low = only very similar colours (precise). High = grabs more (may spill into the background).">
+          <div class="row">
+            <span class="row-label">Sensitivity</span>
+            <span class="stepper"><button class="step" data-target="pickSens" data-delta="-1">−</button><input id="pickSensNum" class="num" type="number" min="1" max="10" step="1" value="4"><span id="pickSensVal" class="unit"></span><button class="step" data-target="pickSens" data-delta="1">+</button></span>
+          </div>
+          <input id="pickSens" type="range" min="1" max="10" step="1" value="4">
+        </div>
+        <div class="timeline-row">
+          <button id="btnConfirm" class="btn-small acid-btn" data-help="Use this selection: it will be tracked from this frame on and moshed.">Confirm object</button>
+          <span id="confirmText" class="sub-info"></span>
+        </div>
+        <div class="control" data-help="How long the smeared trail stays behind the object before fading back to the real picture, in frames. 0 = no trail.">
+          <div class="row">
+            <span class="row-label">Trail</span>
+            <span class="stepper"><button class="step" data-target="trail" data-delta="-1">−</button><input id="trailNum" class="num" type="number" min="0" max="120" step="1" value="30"><span id="trailVal" class="unit"></span><button class="step" data-target="trail" data-delta="1">+</button></span>
+          </div>
+          <input id="trail" type="range" min="0" max="120" step="1" value="30">
+        </div>
+        <div class="control" data-help="Size of the moving blocks, like a codec's macroblocks. Small = finer smears, big = chunky blocks.">
+          <div class="row">
+            <span class="row-label">Block size</span>
+            <span class="stepper"><button class="step" data-target="blockSize" data-delta="-1">−</button><input id="blockSizeNum" class="num" type="number" min="4" max="32" step="1" value="16"><span id="blockSizeVal" class="unit"></span><button class="step" data-target="blockSize" data-delta="1">+</button></span>
+          </div>
+          <input id="blockSize" type="range" min="4" max="32" step="1" value="16">
+        </div>
+        <div class="control" data-help="How much of the real picture bleeds back into the moshed area every frame. 0 = pure smear (melts completely), higher = the object stays more recognisable.">
+          <div class="row">
+            <span class="row-label">Bleed-through</span>
+            <span class="stepper"><button class="step" data-target="bleed" data-delta="-1">−</button><input id="bleedNum" class="num" type="number" min="0" max="30" step="1" value="3"><span id="bleedVal" class="unit"></span><button class="step" data-target="bleed" data-delta="1">+</button></span>
+          </div>
+          <input id="bleed" type="range" min="0" max="30" step="1" value="3">
+        </div>
+      </div>
+
       <label class="check" data-help="Include audio: the moshed clip gets the clips' audio, kept in sync with the picture. Removed keyframes and trims cut the matching audio, smear boost stutters it like the picture, bloom is silent. It goes on an audio track that is empty at that spot (or a new one), so your existing audio is never overwritten.">
         <input id="audioOn" type="checkbox" checked> Include audio (in sync)
       </label>

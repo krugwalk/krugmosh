@@ -36,7 +36,8 @@ const DEFAULTS = {
   trimA: 0, trimB: 0, quant: 2, healAfter: 0, gop: 999, bloomOn: false, bloom: 150, bloomAt: 0, bloomWhich: "auto", bloomSmooth: true,
   smearFrames: 0, smearRepeat: 3, acidOn: false, acidStyle: "prism", spin: 30, objectsOn: true, detail: 6, sat: 300, contrast: 150, brightness: 0, hueJump: 0,
   posterize: 0, neon: false, onlyJoins: false, useRange: false,
-  keepAvi: false, audioOn: true, mode: "auto", showMarkers: false, source: "timeline",
+  keepAvi: false, audioOn: true, targetOn: false, pickSens: 4, trail: 30, blockSize: 16, bleed: 3,
+  mode: "auto", showMarkers: false, source: "timeline",
 };
 const SETTINGS_KEY = "datamosh.settings.v1";
 
@@ -86,6 +87,11 @@ function readSettings() {
     useRange: $("useRange").checked,
     keepAvi: $("keepAvi").checked,
     audioOn: $("audioOn").checked,
+    targetOn: $("targetOn").checked,
+    pickSens: sliderInt("pickSens"),
+    trail: sliderInt("trail"),
+    blockSize: sliderInt("blockSize"),
+    bleed: sliderInt("bleed"),
     mode: state.mode,
     showMarkers: $("showMarkers").checked,
     source: state.source,
@@ -123,6 +129,12 @@ function applySettings(s) {
   $("useRange").checked = !!s.useRange;
   $("keepAvi").checked = !!s.keepAvi;
   $("audioOn").checked = s.audioOn !== false;
+  $("targetOn").checked = !!s.targetOn;
+  $("pickSens").value = s.pickSens === undefined ? 4 : s.pickSens;
+  $("trail").value = s.trail === undefined ? 30 : s.trail;
+  $("blockSize").value = s.blockSize === undefined ? 16 : s.blockSize;
+  $("bleed").value = s.bleed === undefined ? 3 : s.bleed;
+  showTargetOpts();
   $("showMarkers").checked = !!s.showMarkers;
   setSource(s.source, true);
   setMode(s.mode === "manual" ? "manual" : "auto", true);
@@ -257,7 +269,7 @@ function quantUnit(q) {
 }
 
 const SLIDERS = ["trimA", "trimB", "quant", "healAfter", "gop", "bloom", "bloomAt",
-                 "smearFrames", "smearRepeat", "sat", "contrast", "brightness", "hueJump", "posterize", "spin", "detail"];
+                 "smearFrames", "smearRepeat", "sat", "contrast", "brightness", "hueJump", "posterize", "spin", "detail", "pickSens", "trail", "blockSize", "bleed"];
 
 function unitFor(id, v) {
   if (id === "quant") return quantUnit(v);
@@ -270,6 +282,10 @@ function unitFor(id, v) {
   if (id === "hueJump") return v ? "° per cut" : "off";
   if (id === "spin") return v ? "° / frame" : "off";
   if (id === "detail") return "colours";
+  if (id === "pickSens") return v <= 3 ? "precise" : v >= 8 ? "grabs a lot" : "medium";
+  if (id === "trail") return v ? "frames" : "off";
+  if (id === "blockSize") return "px";
+  if (id === "bleed") return "%";
   if (id === "posterize") return v < 2 ? "off" : "levels";
   return frameUnit(v);
 }
@@ -283,6 +299,7 @@ function updateValueLabels() {
     $(id + "Val").textContent = unitFor(id, v);
   }
   refreshScanState();
+  if (state.target && state.target.pick && sliderInt("pickSens") !== state.target.sens) schedulePickSens();
 }
 
 /** Typed value -> slider (whole number, clamped to the slider's range). */
@@ -309,6 +326,112 @@ function bindNumberBoxes() {
     });
     box.addEventListener("focus", () => { try { box.select(); } catch (e) { /* ignore */ } });
   }
+}
+
+// ------------------------------------------------------------------ targeted mosh
+
+let pickSensTimer = null;
+
+function showTargetOpts() {
+  $("targetOpts").className = "bloom-opts" + ($("targetOn").checked ? "" : " hidden");
+}
+
+function renderPick() {
+  const t = state.target;
+  if (!t || !t.pick) {
+    $("pickWrap").className = "pick-wrap hidden";
+    $("confirmText").textContent = "";
+    return;
+  }
+  $("pickWrap").className = "pick-wrap";
+  $("pickImg").src = HELPER + "/pick/" + t.pick + "/image.png?t=" + Date.now();
+  const tiny = t.clicks && t.coverage < 0.3;
+  const huge = t.coverage > 50;
+  $("pickNote").textContent = !t.clicks
+    ? `Clip ${t.clipIndex + 1}, ${t.offset.toFixed(2)}s in: click the object in the picture.`
+    : tiny ? `Almost nothing selected (${t.coverage}%): raise Sensitivity or click a bigger part of the object.`
+    : huge ? `${t.coverage}% of the frame selected: it probably spilled into the background. Lower Sensitivity or Undo.`
+    : `Selected ${t.coverage}% of the frame. Click more parts to add them; Undo / Clear to fix.`;
+  $("pickNote").className = "sub-info" + (tiny || huge ? " warn-text" : "");
+  $("confirmText").textContent = t.confirmed ? `✓ Confirmed (clip ${t.clipIndex + 1})` : "";
+  $("confirmText").className = "sub-info" + (t.confirmed ? "" : "");
+}
+
+async function pickCall(body) {
+  const r = await fetch(HELPER + "/pick/" + state.target.pick, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  const j = await r.json();
+  if (!r.ok) throw new Error(j.error || "pick failed");
+  Object.assign(state.target, { clicks: j.clicks, coverage: j.coverage, sens: j.sensitivity, confirmed: false });
+  renderPick();
+  updateMoshButton();
+}
+
+function schedulePickSens() {
+  clearTimeout(pickSensTimer);
+  pickSensTimer = setTimeout(() => {
+    pickCall({ sensitivity: sliderInt("pickSens") }).catch((e) => logLine(String(e.message || e), true));
+  }, 300);
+}
+
+/** Pick object: the frame under the playhead (in a selected clip) to click the object in. */
+async function onPickObject() {
+  if (state.busy) return;
+  try {
+    if (!(await onUseSelection({ auto: true }))) {
+      logLine("Select the clip on the timeline first.", true);
+      return;
+    }
+    let idx = 0;
+    let offset = 0;
+    if (PREVIEW) {
+      idx = state.clips.length > 1 ? 1 : 0;
+      offset = 1.0;
+    } else {
+      const { sequence } = await getProjectAndSequence();
+      const t = (await sequence.getPlayerPosition()).seconds;
+      const i = state.clips.findIndex((c) => t >= c.timelineStart - 1e-6 && t < c.timelineStart + c.duration);
+      if (i !== -1) { idx = i; offset = t - state.clips[i].timelineStart; }
+      else logLine("Playhead isn't on a selected clip: using the start of the first one.");
+    }
+    setStatus("Loading the frame…", "busy");
+    const src = await jobClips();                          // render first if "As on timeline"
+    const r = await fetch(HELPER + "/pick", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clip: src.clips[idx], offset, sensitivity: sliderInt("pickSens"),
+        size: state.seqInfo && state.seqInfo.size, fps: state.seqInfo && state.seqInfo.fps,
+      }),
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || "couldn't load the frame");
+    state.target = { pick: j.pick, clipIndex: idx, offset, clicks: 0, coverage: 0, sens: j.sensitivity,
+                     confirmed: false, rendered: src.rendered, clipKey: clipKey(state.clips[idx]) };
+    renderPick();
+    setStatus("Click the object", "ok");
+    updateMoshButton();
+  } catch (e) {
+    setStatus("Couldn't load the frame", "err");
+    logLine(String(e.message || e), true);
+  }
+}
+
+function onPickClick(e) {
+  if (!state.target || !state.target.pick || state.busy) return;
+  const r = $("pickImg").getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width;
+  const y = (e.clientY - r.top) / r.height;
+  pickCall({ click: [x, y] }).catch((err) => logLine(String(err.message || err), true));
+}
+
+function onConfirm() {
+  const t = state.target;
+  if (!t || !t.clicks) { logLine("Click the object in the picture first.", true); return; }
+  if (t.coverage < 0.3) { logLine("Almost nothing is selected: raise Sensitivity or click a bigger part.", true); return; }
+  t.confirmed = true;
+  renderPick();
+  updateMoshButton();
 }
 
 // ------------------------------------------------------------------ modes, cuts, picker
@@ -715,6 +838,15 @@ function minClips() { return $("bloomOn").checked ? 1 : 2; }
 /** What stops a mosh with the clips loaded right now (null = good to go). */
 function moshProblem() {
   const n = state.clips.length;
+  if ($("targetOn").checked) {
+    const t = state.target;
+    if (!t || !t.pick) return "Targeted mosh: put the playhead on the object, click Pick object, click the object, then Confirm.";
+    if (!t.confirmed) return "Targeted mosh: click Confirm object when the selection looks right.";
+    if (!state.clips.some((c) => clipKey(c) === t.clipKey)) {
+      return "Targeted mosh: the picked clip isn't selected any more. Select it again or pick again.";
+    }
+    return null;
+  }
   const bloom = $("bloomOn").checked;
   if (n === 0) return "Nothing usable is selected on the timeline. Select the clips first.";
   if (n === 1 && !bloom) {
@@ -752,7 +884,8 @@ function updateMoshButton() {
   $("app").className = "app" + (state.busy ? " busy" : "");
   ["trimA", "trimB", "quant", "healAfter", "gop", "bloom", "bloomAt", "bloomOn", "bloomSmooth", "bwAuto", "bwAfter", "bwPlayhead",
    "btnUsePlayhead", "smearFrames", "smearRepeat", "acidOn", "sat", "contrast", "brightness", "hueJump", "spin", "detail", "objectsOn", "stPrism", "stPure", "stTint",
-   "posterize", "neon", "btnAcidPreset", "onlyJoins", "useRange", "keepAvi", "audioOn", "btnRefresh",
+   "posterize", "neon", "btnAcidPreset", "onlyJoins", "useRange", "keepAvi", "audioOn", "targetOn", "btnPick", "btnPickUndo", "btnPickClear",
+   "btnConfirm", "pickSens", "trail", "blockSize", "bleed", "btnRefresh",
    "btnReset", "modeAuto", "modeManual", "srcTimeline", "srcOriginal", "pickAll", "pickCuts", "pickNone", "showMarkers",
    "btnClearMarkers", "btnMarkNow"].forEach((id) => {
     $(id).disabled = state.busy;
@@ -893,7 +1026,7 @@ function showResult(result, jobId, placedText) {
 // ------------------------------------------------------------------ helper
 
 // The helper version this panel needs (matches VERSION in mosh_server.py).
-const HELPER_VERSION = 10;
+const HELPER_VERSION = 11;
 
 async function checkHelper() {
   let ok = false;
@@ -1154,7 +1287,7 @@ async function freeAudioTrack(sequence, t0, t1) {
   return -1;
 }
 
-async function placeResult(outputPath, seconds) {
+async function placeResult(outputPath, seconds, anchorIdx) {
   if (PREVIEW) {
     logLine("(preview mode: would import into Premiere now)");
     return "preview mode, not placed";
@@ -1167,10 +1300,11 @@ async function placeResult(outputPath, seconds) {
   const projectItem = await findProjectItemByPath(root, outputPath, 3);
   if (!projectItem) throw new Error("Imported, but couldn't find the clip in the project panel.");
 
-  const first = state.clips[0];
+  const anchored = anchorIdx !== undefined && state.clips[anchorIdx];
+  const first = anchored ? state.clips[anchorIdx] : state.clips[0];
   const t0 = first.timelineStart;
   const t1 = t0 + (seconds || 0);
-  let vTrack = Math.max(...state.clips.map((c) => c.track)) + 1;   // right above the clips
+  let vTrack = (anchored ? first.track : Math.max(...state.clips.map((c) => c.track))) + 1;
   const vCount = await sequence.getVideoTrackCount();
   const aCount = await sequence.getAudioTrackCount();
   // Audio must never overwrite existing audio: use an audio track that's empty there.
@@ -1496,6 +1630,7 @@ async function onMosh() {
     logLine(problem, true);
     return;
   }
+  if ($("targetOn").checked) return runTargeted();
   return runBusy(async () => {
     const s = readSettings();
     const body = Object.assign(await commonBody(), {
@@ -1532,6 +1667,27 @@ async function onMosh() {
   });
 }
 
+function runTargeted() {
+  return runBusy(async () => {
+    const s = readSettings();
+    const t = state.target;
+    const body = {
+      pick: t.pick, trail: s.trail, block: s.blockSize, refresh: s.bleed / 100, audio: s.audioOn,
+      rendered: t.rendered, outputDir: state.seqInfo && state.seqInfo.outputDir,
+      clips: [state.clips[t.clipIndex]],   // for the progress estimate
+    };
+    const { result, job } = await runHelperJob(body, "target");
+    setStatus("Importing into Premiere…", "busy");
+    setProgress(0.97);
+    state.lastHadAudio = !!result.audio;
+    const anchor = state.clips.findIndex((c) => clipKey(c) === t.clipKey);
+    const placed = await placeResult(result.output, result.seconds, anchor === -1 ? 0 : anchor);
+    setProgress(1, "ok");
+    setStatus("Done", "ok");
+    showResult(result, job, placed);
+  });
+}
+
 async function onReveal() {
   if (!state.lastResultJob) return;
   try {
@@ -1549,6 +1705,14 @@ SLIDERS.forEach((id) => {
   $(id).addEventListener("input", () => { updateValueLabels(); saveSettings(); });
   $(id).addEventListener("change", () => { updateValueLabels(); saveSettings(); });
 });
+$("targetOn").addEventListener("change", () => { showTargetOpts(); saveSettings(); updateMoshButton(); });
+$("btnPick").addEventListener("click", onPickObject);
+$("btnPickUndo").addEventListener("click", () => state.target && state.target.pick &&
+  pickCall({ undo: true }).catch((e) => logLine(String(e.message || e), true)));
+$("btnPickClear").addEventListener("click", () => state.target && state.target.pick &&
+  pickCall({ clear: true }).catch((e) => logLine(String(e.message || e), true)));
+$("btnConfirm").addEventListener("click", onConfirm);
+$("pickImg").addEventListener("click", onPickClick);
 ["onlyJoins", "useRange", "keepAvi", "audioOn"].forEach((id) => $(id).addEventListener("change", saveSettings));
 $("bloomOn").addEventListener("change", () => { showBloomOpts(); saveSettings(); renderClips(state.lastWarnings); });
 $("bloomSmooth").addEventListener("change", saveSettings);
