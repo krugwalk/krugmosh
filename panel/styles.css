@@ -204,7 +204,7 @@ input[type="range"] { width: 100%; margin: 3px 0; }
   border-color: #3c7fb1;
   background-image: linear-gradient(180deg, #eaf6fd 0%, #d9f0fc 50%, #bee6fd 51%, #a7d9f5 100%);
 }
-.step:disabled { color: #a0a0a0; border-color: #adb2b5; background-image: none; background-color: #f4f4f4; }
+.step.is-disabled { color: #a0a0a0; border-color: #adb2b5; background-image: none; background-color: #f4f4f4; }
 .num {
   width: 46px;
   height: 21px;
@@ -252,7 +252,19 @@ input[type="range"] { width: 100%; margin: 3px 0; }
 .app.busy .section input { opacity: 0.6; }
 
 /* ---------- buttons ---------- */
-button { font-family: inherit; cursor: pointer; }
+/* "Buttons" are plain elements (Premiere draws real <button>s its own way and ignores
+   this styling). .is-disabled replaces :disabled. */
+[role="button"] {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+[role="button"].is-disabled { cursor: default; }
 .btn-small {
   border: 1px solid #707070;
   border-radius: 3px;
@@ -270,7 +282,7 @@ button { font-family: inherit; cursor: pointer; }
   border-color: #2c628b;
   background-image: linear-gradient(180deg, #e5f4fc 0%, #c4e5f6 50%, #98d1ef 51%, #68b3db 100%);
 }
-.btn-small:disabled {
+.btn-small.is-disabled {
   color: #838383;
   border-color: #adb2b5;
   background-image: none;
@@ -287,7 +299,7 @@ button { font-family: inherit; cursor: pointer; }
   font-size: 12px;
 }
 .btn-link:hover { color: #3399ff; text-decoration: underline; }
-.btn-link:disabled { color: #a0a0a0; text-decoration: none; }
+.btn-link.is-disabled { color: #a0a0a0; text-decoration: none; }
 
 /* big default button */
 .btn-mosh {
@@ -306,7 +318,7 @@ button { font-family: inherit; cursor: pointer; }
   border-color: #2c628b;
   background-image: linear-gradient(180deg, #eef7fe 0%, #d8edfc 48%, #9fcdf6 52%, #c7e4fb 100%);
 }
-.btn-mosh:disabled {
+.btn-mosh.is-disabled {
   color: #838383;
   border-color: #adb2b5;
   background-image: none;

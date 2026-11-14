@@ -832,6 +832,29 @@ function stopTimer() {
   state.timer = null;
 }
 
+/** The panel's "buttons" are plain elements (Premiere restyles real <button>s), so a
+ *  disabled one gets the is-disabled class, and clicks on it are ignored. */
+function syncDisabled() {
+  document.querySelectorAll('[role="button"]').forEach((b) => {
+    const off = !!b.disabled;
+    const has = (" " + b.className + " ").indexOf(" is-disabled ") !== -1;
+    if (off && !has) b.className = (b.className + " is-disabled").trim();
+    if (!off && has) b.className = b.className.replace(/\s*is-disabled/g, "");
+  });
+}
+
+function ownerButton(el) {
+  for (let n = el; n && n !== document; n = n.parentNode) {
+    if (n.getAttribute && n.getAttribute("role") === "button") return n;
+  }
+  return null;
+}
+
+document.addEventListener("click", (e) => {
+  const b = ownerButton(e.target);
+  if (b && b.disabled) { e.stopPropagation(); e.preventDefault(); }
+}, true);
+
 /** A cut needs 2 clips; with Bloom ticked a single clip is enough. */
 function minClips() { return $("bloomOn").checked ? 1 : 2; }
 
@@ -892,6 +915,7 @@ function updateMoshButton() {
   });
   $("btnScan").disabled = state.busy || !state.helperOk;
   document.querySelectorAll(".step, .num").forEach((b) => { b.disabled = state.busy; });
+  syncDisabled();
 }
 
 function renderClips(warnings) {
@@ -1068,6 +1092,7 @@ async function checkHelper() {
 async function onStartHelper() {
   const btn = $("btnStartHelper");
   btn.disabled = true;
+  syncDisabled();
   try {
     const uxp = require("uxp");
     // Installed copy: config.js says where the datamosh folder is. While developing the
@@ -1094,6 +1119,7 @@ async function onStartHelper() {
             "or run install_autostart.bat once.", true);
   } finally {
     btn.disabled = false;
+    syncDisabled();
   }
   updateMoshButton();
 }

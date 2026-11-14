@@ -19,8 +19,12 @@ function New-Package {
     Copy-Item (Join-Path $panel "*") $stage -Recurse -Force
     # the installed copy lives in Premiere's plugin folder: tell it where the helper is
     $home_js = ($root -replace '\\', '\\')
-    Set-Content -Path (Join-Path $stage "config.js") -Encoding UTF8 `
-        -Value "window.DATAMOSH_HOME = `"$home_js`";"
+    # UTF-8 WITHOUT a byte-order mark (Windows PowerShell's -Encoding UTF8 adds one, and
+    # Adobe's installer rejects a manifest that starts with it)
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    [IO.File]::WriteAllText((Join-Path $stage "config.js"), "window.DATAMOSH_HOME = `"$home_js`";`n", $utf8)
+    $man = Join-Path $stage "manifest.json"
+    [IO.File]::WriteAllText($man, ([IO.File]::ReadAllText($man)).TrimStart([char]0xFEFF), $utf8)
     $zip = Join-Path $build "datamosh.zip"
     if (Test-Path $zip) { Remove-Item $zip -Force }
     if (Test-Path $ccx) { Remove-Item $ccx -Force }
@@ -40,8 +44,12 @@ switch ($Action) {
         Test-Upia
         New-Package
         Write-Host "Installing with Adobe's plugin installer..."
-        & $upia /install $ccx
-        if ($LASTEXITCODE -ne 0) { throw "Adobe's installer reported an error (exit $LASTEXITCODE)." }
+        $out = (& $upia /install $ccx 2>&1 | Out-String)
+        Write-Host $out.Trim()
+        # the installer exits 0 even when it fails, so read what it says
+        if ($LASTEXITCODE -ne 0 -or $out -match "Failed") {
+            throw "Adobe's installer could not install it (see the message above). If Premiere Pro is open, close it and try again."
+        }
         Write-Host "Installed. Restart Premiere Pro, then open Window > UXP Plugins > Datamosh."
     }
     "uninstall" {
