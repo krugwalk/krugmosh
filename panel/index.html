@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Datamosh</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+
+    <!-- header -->
+    <div class="header">
+      <div class="title">
+        <span class="title-main">DATAMOSH</span>
+        <span class="title-sub">keyframe-removal transition</span>
+      </div>
+      <div id="helperPill" class="pill pill-off" data-help="The helper does the actual moshing. Start it by double-clicking start_helper.bat in the datamosh folder.">
+        <span class="dot"></span><span id="helperText">offline</span>
+      </div>
+    </div>
+
+    <div id="offlineBanner" class="banner">
+      <span id="bannerText">The helper isn't running.</span>
+      <div class="banner-actions">
+        <button id="btnStartHelper" class="btn-small">Start helper</button>
+        <span class="banner-hint">Runs hidden. To never see this again, run <b>install_autostart.bat</b> once.</span>
+      </div>
+    </div>
+
+    <!-- clips -->
+    <div class="section">
+      <div class="section-head">
+        <span class="section-label">Clips</span>
+        <button id="btnRefresh" class="btn-small" data-help="Reads the clips you selected on the timeline. Select 2 or more video clips with a cut between them.">Use selection</button>
+      </div>
+      <div id="clipList" class="clip-list"></div>
+      <div class="src-row">
+        <span class="src-label">Clip source</span>
+        <div class="seg seg-small">
+          <button id="srcTimeline" class="seg-btn on" data-help="As on timeline: Premiere first renders the selected clips exactly as they look in your sequence (crop, scale, position, speed, colour, effects), and that render is moshed. Slower, but what you see is what gets moshed.">As on timeline</button>
+          <button id="srcOriginal" class="seg-btn" data-help="Original media: moshes the untouched source files (only the trimmed in/out range). Faster, but ignores effects, crop, scale and speed changes.">Original media</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- settings -->
+    <div class="section">
+      <div class="section-head">
+        <span class="section-label">Settings</span>
+        <button id="btnReset" class="btn-link" data-help="Put every setting back to its default.">Reset</button>
+      </div>
+
+      <!-- which keyframes get removed -->
+      <div class="seg">
+        <button id="modeAuto" class="seg-btn on" data-help="Auto: removes keyframes for you by rule. Every keyframe after the first, or only the ones at cuts.">Auto</button>
+        <button id="modeManual" class="seg-btn" data-help="Pick keyframes: scan the clips, see every keyframe with a thumbnail, and tick exactly which ones to delete. Like stepping through I-frames in Avidemux.">Pick keyframes</button>
+      </div>
+
+      <div id="autoOpts" class="mode-opts">
+        <label class="check" data-help="On: only the keyframe at each cut is removed, so the clips themselves play clean. Off: every keyframe after the first is removed, like the tutorial (scene changes inside clips smear too).">
+          <input id="onlyJoins" type="checkbox"> Keep clips clean, only mosh at cuts
+        </label>
+        <label class="check" data-help="Only removes keyframes between the sequence In and Out points (set them with I and O on the timeline). Keyframes outside stay, so those parts play clean. Click Use selection again after changing In/Out.">
+          <input id="useRange" type="checkbox"> Only between sequence In/Out
+        </label>
+        <div id="rangeInfo" class="sub-info">In/Out: not read yet</div>
+      </div>
+
+      <div id="manualOpts" class="mode-opts hidden">
+        <div class="row">
+          <button id="btnScan" class="btn-small" data-help="Encodes the selected clips and lists every keyframe they contain. Takes about as long as the first part of a mosh; the mosh afterwards reuses it.">Scan keyframes</button>
+          <span class="quick">
+            <button id="pickAll" class="btn-link" data-help="Tick every keyframe that can be removed.">All</button>
+            <button id="pickCuts" class="btn-link" data-help="Tick only the keyframes at cuts.">Cuts</button>
+            <button id="pickNone" class="btn-link" data-help="Untick everything.">None</button>
+          </span>
+        </div>
+        <div id="scanNote" class="sub-info">Scan to list the keyframes in your clips.</div>
+        <div class="timeline-row">
+          <label class="check" data-help="Puts a marker on the timeline at every keyframe: red = will be removed, green = kept. Updates as you tick and untick. Click a row in the list to jump the playhead to that keyframe.">
+            <input id="showMarkers" type="checkbox"> Show on timeline
+          </label>
+          <span class="quick">
+            <button id="btnMarkNow" class="btn-link" data-help="Puts the keyframe markers on the timeline right now (red = will be removed, green = kept).">Mark now</button>
+            <button id="btnClearMarkers" class="btn-link" data-help="Removes the Datamosh markers from the timeline (your own markers are left alone).">Clear</button>
+          </span>
+        </div>
+        <div id="kfList" class="kf-list empty-list"></div>
+      </div>
+
+      <div class="control" data-help="Deletes the last frames of the outgoing clip, so the smear starts earlier. Avidemux: deleting frames before the join.">
+        <div class="row">
+          <span class="row-label">Drop frames before cut</span>
+          <span class="stepper"><button class="step" data-target="trimA" data-delta="-1">−</button><input id="trimANum" class="num" type="number" min="0" max="60" step="1" value="0"><span id="trimAVal" class="unit"></span><button class="step" data-target="trimA" data-delta="1">+</button></span>
+        </div>
+        <input id="trimA" type="range" min="0" max="60" step="1" value="0">
+      </div>
+
+      <div class="control" data-help="Deletes the first frames of the incoming clip. Skips its first moves, so the smear kicks in with whatever motion comes next. Avidemux: deleting frames after the join.">
+        <div class="row">
+          <span class="row-label">Drop frames after cut</span>
+          <span class="stepper"><button class="step" data-target="trimB" data-delta="-1">−</button><input id="trimBNum" class="num" type="number" min="0" max="60" step="1" value="0"><span id="trimBVal" class="unit"></span><button class="step" data-target="trimB" data-delta="1">+</button></span>
+        </div>
+        <input id="trimB" type="range" min="0" max="60" step="1" value="0">
+      </div>
+
+      <div class="control" data-help="Xvid quantizer used before moshing. Low = clean, detailed smear. High = chunky, blocky smear.">
+        <div class="row">
+          <span class="row-label">Block size</span>
+          <span class="stepper"><button class="step" data-target="quant" data-delta="-1">−</button><input id="quantNum" class="num" type="number" min="1" max="12" step="1" value="0"><span id="quantVal" class="unit"></span><button class="step" data-target="quant" data-delta="1">+</button></span>
+        </div>
+        <input id="quant" type="range" min="1" max="12" step="1" value="2">
+      </div>
+
+      <div class="control" data-help="GOP size: the longest gap between keyframes when the clips are encoded. 999 (the tutorial's setting) = keyframes only at scene changes. Lower, e.g. 30 = a keyframe at least every 30 frames, giving Pick mode regular points to choose from (Auto removes them all anyway).">
+        <div class="row">
+          <span class="row-label">GOP size</span>
+          <span class="stepper"><button class="step" data-target="gop" data-delta="-1">−</button><input id="gopNum" class="num" type="number" min="5" max="999" step="1" value="999"><span id="gopVal" class="unit"></span><button class="step" data-target="gop" data-delta="1">+</button></span>
+        </div>
+        <input id="gop" type="range" min="5" max="999" step="1" value="999">
+      </div>
+
+      <div class="control" data-help="Puts a clean keyframe back this many frames after each moshed cut, so the picture snaps back to normal at a point you choose. Off = the smear fades out on its own.">
+        <div class="row">
+          <span class="row-label">Heal after</span>
+          <span class="stepper"><button class="step" data-target="healAfter" data-delta="-1">−</button><input id="healAfterNum" class="num" type="number" min="0" max="300" step="1" value="0"><span id="healAfterVal" class="unit"></span><button class="step" data-target="healAfter" data-delta="1">+</button></span>
+        </div>
+        <input id="healAfter" type="range" min="0" max="300" step="1" value="0">
+      </div>
+
+      <label class="check" data-help="Bloom: one motion frame is copied and pasted over and over (like in Avidemux), so the picture keeps following that movement and blooms out. The moshed clip gets longer by the repeat count.">
+        <input id="bloomOn" type="checkbox"> Bloom
+      </label>
+
+      <div id="bloomOpts" class="bloom-opts">
+      <div class="seg seg-small bloom-seg">
+        <button id="bwAuto" class="seg-btn on" data-help="Strongest motion: after each moshed cut, the frame where the most of the picture is moving is picked for you.">Strongest motion</button>
+        <button id="bwAfter" class="seg-btn" data-help="After cut: blooms the frame 'Bloom at' frames after each moshed cut.">After cut</button>
+        <button id="bwPlayhead" class="seg-btn" data-help="Playhead: park the playhead on the exact frame you want, click Use playhead, and that frame is bloomed right there.">Playhead</button>
+      </div>
+
+      <div id="bloomNote" class="sub-info hidden"></div>
+
+      <div id="bloomPlayheadRow" class="timeline-row hidden">
+        <button id="btnUsePlayhead" class="btn-small" data-help="Grabs the frame under the playhead (it must be inside one of the selected clips).">Use playhead</button>
+        <span id="bloomPointText" class="sub-info">no frame chosen yet</span>
+      </div>
+      <div class="control" data-help="How many times the frame is repeated. Go big: hundreds or thousands for a huge bloom (at 30 fps, 300 = 10 extra seconds).">
+        <div class="row">
+          <span class="row-label">Repeat</span>
+          <span class="stepper"><button class="step" data-target="bloom" data-delta="-1">−</button><input id="bloomNum" class="num" type="number" min="1" max="3000" step="1" value="150"><span id="bloomVal" class="unit"></span><button class="step" data-target="bloom" data-delta="1">+</button></span>
+        </div>
+        <input id="bloom" type="range" min="1" max="3000" step="1" value="150">
+      </div>
+
+      <div id="bloomAtCtl" class="control hidden" data-help="Which frame gets repeated: this many frames after the cut. Pick a moment where the incoming clip moves strongly in the direction you want the picture to bloom.">
+        <div class="row">
+          <span class="row-label">Bloom at</span>
+          <span class="stepper"><button class="step" data-target="bloomAt" data-delta="-1">−</button><input id="bloomAtNum" class="num" type="number" min="0" max="120" step="1" value="0"><span id="bloomAtVal" class="unit"></span><button class="step" data-target="bloomAt" data-delta="1">+</button></span>
+        </div>
+        <input id="bloomAt" type="range" min="0" max="120" step="1" value="0">
+      </div>
+
+      <label class="check" data-help="Smooth: repeats a low-quality copy of the frame (its motion without the colour corrections) and softens block edges, for soft trails and natural colours. Off: the raw frame, harsher and more colourful/blocky.">
+        <input id="bloomSmooth" type="checkbox" checked> Smooth (soft trails, natural colours)
+      </label>
+      </div>
+
+      <!-- glitch: heavier smear + acid colour -->
+      <div class="glitch-head">
+        <span class="section-label">Glitch</span>
+        <button id="btnAcidPreset" class="btn-small acid-btn" data-help="One click towards the fast-cut neon glitch look: moshes every cut, a short raw bloom, smear boost and acid colour with a hue jump at every cut. Tweak anything afterwards.">⚡ Acid preset</button>
+      </div>
+
+      <div class="control" data-help="Smear boost: right after each moshed cut, the first frames of movement are each repeated, so the whole motion is replayed several times and the old picture gets dragged and churned much harder. 0 = off.">
+        <div class="row">
+          <span class="row-label">Smear boost</span>
+          <span class="stepper"><button class="step" data-target="smearFrames" data-delta="-1">−</button><input id="smearFramesNum" class="num" type="number" min="0" max="60" step="1" value="0"><span id="smearFramesVal" class="unit"></span><button class="step" data-target="smearFrames" data-delta="1">+</button></span>
+        </div>
+        <input id="smearFrames" type="range" min="0" max="60" step="1" value="0">
+      </div>
+
+      <div class="control" data-help="How many times each of those frames is played. Higher = harder drag (and a longer clip).">
+        <div class="row">
+          <span class="row-label">Smear strength</span>
+          <span class="stepper"><button class="step" data-target="smearRepeat" data-delta="-1">−</button><input id="smearRepeatNum" class="num" type="number" min="2" max="10" step="1" value="3"><span id="smearRepeatVal" class="unit"></span><button class="step" data-target="smearRepeat" data-delta="1">+</button></span>
+        </div>
+        <input id="smearRepeat" type="range" min="2" max="10" step="1" value="3">
+      </div>
+
+      <label class="check" data-help="Acid colour: blows out saturation and contrast and jumps to a new hue at every cut, like neon glitch edits.">
+        <input id="acidOn" type="checkbox"> Acid colour
+      </label>
+      <div id="acidOpts" class="bloom-opts hidden">
+        <div class="seg seg-small bloom-seg">
+          <button id="stPrism" class="seg-btn on" data-help="Prism: brightness is mapped onto a rainbow, so every frame is full of different pure colours.">Prism</button>
+          <button id="stPure" class="seg-btn" data-help="Pure colours: saturation pushed until areas clip to pure red / green / blue / cyan / magenta / yellow.">Pure colours</button>
+          <button id="stTint" class="seg-btn" data-help="Tint: the normal picture, just saturated and shifted.">Tint</button>
+        </div>
+        <div class="control" data-help="Hue spin: the colours keep turning around the colour wheel by this many degrees every frame, like a fast clock. 30 = full circle ~3 times a second; 90+ = strobing. 0 = no spin.">
+          <div class="row">
+            <span class="row-label">Hue spin</span>
+            <span class="stepper"><button class="step" data-target="spin" data-delta="-1">−</button><input id="spinNum" class="num" type="number" min="0" max="180" step="1" value="30"><span id="spinVal" class="unit"></span><button class="step" data-target="spin" data-delta="1">+</button></span>
+          </div>
+          <input id="spin" type="range" min="0" max="180" step="1" value="30">
+        </div>
+        <label class="check" data-help="Colour clocks: every original colour gets its own clock. Everything that was the same colour (a red shirt, white text, a blue sky) cycles together; different colours cycle at their own speed and direction, from their own start colour. Off = the whole frame cycles together.">
+          <input id="objectsOn" type="checkbox" checked> Colour clocks (each colour its own clock)
+        </label>
+        <div id="detailCtl" class="control" data-help="How many colour families the picture is split into (plus darks, mids and lights for grey areas). Fewer = big groups cycling together; more = closer colours get separate clocks.">
+          <div class="row">
+            <span class="row-label">Colours</span>
+            <span class="stepper"><button class="step" data-target="detail" data-delta="-1">−</button><input id="detailNum" class="num" type="number" min="3" max="12" step="1" value="6"><span id="detailVal" class="unit"></span><button class="step" data-target="detail" data-delta="1">+</button></span>
+          </div>
+          <input id="detail" type="range" min="3" max="12" step="1" value="6">
+        </div>
+        <div class="control" data-help="Colour intensity. 100% = normal.">
+          <div class="row">
+            <span class="row-label">Saturation</span>
+            <span class="stepper"><button class="step" data-target="sat" data-delta="-1">−</button><input id="satNum" class="num" type="number" min="100" max="1000" step="1" value="300"><span id="satVal" class="unit"></span><button class="step" data-target="sat" data-delta="1">+</button></span>
+          </div>
+          <input id="sat" type="range" min="100" max="1000" step="1" value="300">
+        </div>
+        <div class="control" data-help="Contrast. 100% = normal.">
+          <div class="row">
+            <span class="row-label">Contrast</span>
+            <span class="stepper"><button class="step" data-target="contrast" data-delta="-1">−</button><input id="contrastNum" class="num" type="number" min="100" max="500" step="1" value="150"><span id="contrastVal" class="unit"></span><button class="step" data-target="contrast" data-delta="1">+</button></span>
+          </div>
+          <input id="contrast" type="range" min="100" max="500" step="1" value="150">
+        </div>
+        <div class="control" data-help="Brightness. 0 = normal; push it up for a blown-out, glowing look.">
+          <div class="row">
+            <span class="row-label">Brightness</span>
+            <span class="stepper"><button class="step" data-target="brightness" data-delta="-1">−</button><input id="brightnessNum" class="num" type="number" min="-50" max="50" step="1" value="0"><span id="brightnessVal" class="unit"></span><button class="step" data-target="brightness" data-delta="1">+</button></span>
+          </div>
+          <input id="brightness" type="range" min="-50" max="50" step="1" value="0">
+        </div>
+        <div class="control" data-help="How far the colours rotate at every cut, in degrees. 0 = no jumps; 120 = three very different palettes in turn.">
+          <div class="row">
+            <span class="row-label">Hue jump</span>
+            <span class="stepper"><button class="step" data-target="hueJump" data-delta="-1">−</button><input id="hueJumpNum" class="num" type="number" min="0" max="180" step="1" value="120"><span id="hueJumpVal" class="unit"></span><button class="step" data-target="hueJump" data-delta="1">+</button></span>
+          </div>
+          <input id="hueJump" type="range" min="0" max="180" step="1" value="120">
+        </div>
+        <div class="control" data-help="Flat colour bands. Fewer levels = harder posterised look. 0 = off.">
+          <div class="row">
+            <span class="row-label">Posterize</span>
+            <span class="stepper"><button class="step" data-target="posterize" data-delta="-1">−</button><input id="posterizeNum" class="num" type="number" min="0" max="16" step="1" value="0"><span id="posterizeVal" class="unit"></span><button class="step" data-target="posterize" data-delta="1">+</button></span>
+          </div>
+          <input id="posterize" type="range" min="0" max="16" step="1" value="0">
+        </div>
+        <label class="check" data-help="Pulls everything towards neon purple, magenta and blue.">
+          <input id="neon" type="checkbox"> Neon tint
+        </label>
+      </div>
+
+      <label class="check" data-help="Also saves the raw moshed Xvid .avi next to the .mov, so you can open it in Avidemux or VLC.">
+        <input id="keepAvi" type="checkbox"> Keep raw .avi copy (for Avidemux)
+      </label>
+
+      <div id="helpBox" class="help">Hover a setting to see what it does.</div>
+    </div>
+
+    <!-- action -->
+    <button id="btnMosh" class="btn-mosh" disabled>MOSH&nbsp;IT</button>
+
+    <!-- result -->
+    <div id="resultCard" class="section result hidden">
+      <div class="section-head">
+        <span class="section-label">Result</span>
+        <button id="btnReveal" class="btn-small" data-help="Opens the folder with the rendered file selected.">Show in Explorer</button>
+      </div>
+      <div class="preview-wrap">
+        <img id="previewImg" class="preview-img" alt="">
+        <div id="previewLabels" class="preview-labels"></div>
+      </div>
+      <div id="resultInfo" class="result-info"></div>
+    </div>
+
+    <!-- status -->
+    <div class="section status-section">
+      <div class="section-head">
+        <span id="statusText" class="status">Idle</span>
+        <span id="elapsed" class="elapsed"></span>
+      </div>
+      <div class="progress"><div id="progressBar" class="progress-bar"></div></div>
+      <div class="details-head">
+        <button id="btnDetails" class="btn-link">▸ Details</button>
+      </div>
+      <div id="log" class="log hidden"></div>
+    </div>
+
+    <div class="footer">
+      <span id="outDir" class="out-dir">Saves to “Datamosh Renders” next to your project</span>
+    </div>
+  </div>
+  <script src="main.js"></script>
+</body>
+</html>

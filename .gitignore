@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+
+# helper runtime log
+helper.log
+
+# generated from Premiere's own preset on first use (Adobe's file, not ours)
+presets/
+
+# renders and outputs (the small a/b/c/d test clips are kept)
+test-output/preview-renders/
+test-output/moshed.*
+test-output/*.png
+*.mov
+*.avi
+!test-output/*.mp4
