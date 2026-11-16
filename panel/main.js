@@ -1243,6 +1243,7 @@ async function readSelection() {
     });
   }
   clips.sort((a, b) => a.timelineStart - b.timelineStart || a.track - b.track);
+  removeOverlaps(clips, warnings);
 
   // Sequence frame size / rate so the moshed clip matches the timeline.
   let seqInfo = { outputDir: null, fps: null, size: null, inOut: null };
@@ -1266,6 +1267,38 @@ async function readSelection() {
   } catch (e) { /* default dir */ }
 
   return { clips, warnings, seqInfo };
+}
+
+/**
+ * Clips stacked on several video tracks overlap in time. Moshing each one at its full
+ * length would play the overlapping footage twice (the video jumps back). Make every
+ * clip end where the next one starts, so each moment of the timeline is used once.
+ * Clips starting at the same moment: only the top one (the one you see) is kept.
+ */
+function removeOverlaps(clips, warnings) {
+  for (let i = clips.length - 2; i >= 0; i--) {
+    if (Math.abs(clips[i + 1].timelineStart - clips[i].timelineStart) < 0.001) {
+      // sorted by track: i+1 is the higher one. If the lower one is longer, its end
+      // still shows after the top one finishes.
+      const top = clips[i + 1], low = clips[i];
+      const lowEnd = low.fullEnd || low.timelineStart + low.duration;
+      if (lowEnd > top.timelineStart + top.duration + 0.001) top.fullEnd = Math.max(top.fullEnd || 0, lowEnd);
+      clips.splice(i, 1);
+    }
+  }
+  let trimmed = 0;
+  for (let i = 0; i < clips.length - 1; i++) {
+    const c = clips[i];
+    const room = clips[i + 1].timelineStart - c.timelineStart;
+    if (c.duration > room + 0.001) {
+      c.fullEnd = c.timelineStart + c.duration;  // what's left of it plays after the next clip
+      c.duration = room;
+      trimmed++;
+    }
+  }
+  if (trimmed) {
+    warnings.push(`${trimmed} clip(s) overlap clips on other tracks; each part of the timeline is used once.`);
+  }
 }
 
 /** Strip Windows long-path prefixes (\\?\ or \\?\UNC\) so paths compare equal. */
@@ -1602,9 +1635,20 @@ async function jobClips() {
     };
   }
   const r = await renderSelection();
+  // In the render, the end of a clip that was overlapped by a shorter clip on a higher
+  // track plays after that clip: give it to the piece before it, so nothing is lost.
+  const all = state.selClips && state.selClips.length ? state.selClips : state.clips;
+  const dur = {};
+  let cover = -Infinity;
+  all.forEach((c, i) => {
+    cover = Math.max(cover, c.fullEnd || c.timelineStart + c.duration);
+    const next = i + 1 < all.length ? all[i + 1].timelineStart : Infinity;
+    dur[clipKey(c)] = Math.max(c.duration, Math.min(next, cover) - c.timelineStart);
+  });
   return {
     rendered: true,
-    clips: state.clips.map((c) => ({ path: r.path, start: r.offsets[clipKey(c)], duration: c.duration })),
+    clips: state.clips.map((c) => ({ path: r.path, start: r.offsets[clipKey(c)],
+                                     duration: dur[clipKey(c)] || c.duration })),
   };
 }
 
