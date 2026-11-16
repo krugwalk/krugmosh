@@ -186,7 +186,104 @@ html, body { overflow: hidden; }
   color: var(--value);
   font-size: 11px;
 }
-input[type="range"] { width: 100%; margin: 3px 0; }
+/* ---------- Win7 trackbar (drawn; the real range input is hidden) ---------- */
+.w7-slider {
+  position: relative;
+  height: 22px;
+  margin: 2px 0 0 0;
+}
+.w7-track {
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  top: 9px;
+  height: 4px;
+  box-sizing: border-box;
+  border: 1px solid #b0b0b0;
+  border-bottom-color: #e3e3e3;
+  border-right-color: #e3e3e3;
+  border-radius: 1px;
+  background-color: #e7eaea;
+}
+.w7-fill {
+  height: 2px;
+  background-color: #6fb6e8;
+}
+.w7-thumb {
+  position: absolute;
+  top: 2px;
+  width: 11px;
+  height: 18px;
+  box-sizing: border-box;
+  border: 1px solid #707070;
+  border-radius: 2px;
+  background-color: #e5e5e5;
+  background-image: linear-gradient(180deg, #f2f2f2 0%, #ebebeb 50%, #dddddd 51%, #cfcfcf 100%);
+}
+.w7-slider:hover .w7-thumb, .w7-slider.is-dragging .w7-thumb {
+  border-color: #3c7fb1;
+  background-image: linear-gradient(180deg, #eaf6fd 0%, #d9f0fc 50%, #bee6fd 51%, #a7d9f5 100%);
+}
+.w7-slider.is-dragging .w7-thumb {
+  border-color: #2c628b;
+  background-image: linear-gradient(180deg, #e5f4fc 0%, #c4e5f6 50%, #98d1ef 51%, #68b3db 100%);
+}
+.w7-slider.is-disabled .w7-thumb { border-color: #adb2b5; background-image: none; background-color: #f4f4f4; }
+.w7-slider.is-disabled .w7-fill { background-color: #c8c8c8; }
+
+/* ---------- Win7 check box (drawn) ---------- */
+.w7-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 13px;
+  height: 13px;
+  margin-right: 6px;
+  box-sizing: border-box;
+  border: 1px solid #8e8f8f;
+  background-color: #f4f4f4;
+  background-image: linear-gradient(135deg, #dcdcdc 0%, #ffffff 100%);
+}
+.w7-mark {
+  display: none;
+  color: #4a5f97;
+  font-family: "Segoe UI Symbol", "Segoe UI", sans-serif;
+  font-size: 10px;
+  line-height: 11px;
+}
+.w7-check.is-checked .w7-mark { display: block; }
+.check:hover .w7-check, .kf:hover .w7-check, .w7-check:hover {
+  border-color: #3c7fb1;
+  background-image: linear-gradient(135deg, #b1dffd 0%, #e9f7fe 100%);
+}
+.w7-check.is-disabled { border-color: #bcbcbc; background-image: none; background-color: #f4f4f4; }
+.w7-check.is-disabled .w7-mark { color: #a0a0a0; }
+.check { cursor: default; }
+
+/* ---------- Win7 text box showing a number (click to type) ---------- */
+.num-view {
+  width: 46px;
+  height: 21px;
+  margin: 0 0 0 4px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border: 1px solid #abadb3;
+  border-top-color: #8e8f8f;
+  border-left-color: #e2e3ea;
+  border-right-color: #dbdfe6;
+  border-bottom-color: #e3e9ef;
+  background-color: #ffffff;
+  color: #000000;
+  font-size: 11px;
+  line-height: 19px;
+  text-align: right;
+  overflow: hidden;
+}
+.num-view:hover { border-color: #5794bf; border-top-color: #3d7bad; }
+.num-view.is-disabled { color: #8d8d8d; background-color: #f4f4f4; border-color: #c9c9c9; }
+.stepper .step + .num, .stepper .step + .num-view { margin-left: 4px; }
+.stepper .unit + .step { margin-left: 0; }
 .stepper { display: flex; flex-direction: row; align-items: center; }
 .step {
   width: 20px;
@@ -221,7 +318,7 @@ input[type="range"] { width: 100%; margin: 3px 0; }
 }
 .num:focus { border-color: #3d7bad; outline: none; }
 .unit {
-  width: 52px;
+  width: 62px;
   margin: 0 6px 0 4px;
   color: var(--muted);
   font-size: 11px;
@@ -235,6 +332,7 @@ input[type="range"] { width: 100%; margin: 3px 0; }
   color: var(--text);
 }
 .check input { margin-right: 6px; }
+.check .w7-check { margin-right: 6px; }
 /* tooltip-style help box */
 .help {
   margin-top: 8px;

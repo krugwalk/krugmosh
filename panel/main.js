@@ -522,6 +522,7 @@ function renderPicker() {
     box.addEventListener("click", (e) => e.stopPropagation());  // ticking shouldn't jump
     box.addEventListener("change", () => onPick(k, box.checked));
     row.appendChild(box);
+    if (window.w7Check) window.w7Check(box);   // Win7-style tick box
 
     const img = document.createElement("img");
     img.className = "kf-thumb";
