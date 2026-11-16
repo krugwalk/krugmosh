@@ -1,5 +1,5 @@
 # Helper install: Python packages, ffmpeg, helper autostart.
-# (The Premiere panel itself is installed from datamosh.ccx.)
+# (The Premiere panel itself is installed from krugmosh.ccx.)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 
@@ -43,5 +43,5 @@ Step 3 "Helper (starts hidden with Windows)"
 & (Join-Path $PSScriptRoot "helper_tools.ps1") install
 
 Write-Host ""
-Write-Host "Done. In Premiere, open Window > UXP Plugins > Datamosh: it should say helper online." -ForegroundColor Green
-Write-Host "(No panel yet? Double-click datamosh.ccx from the GitHub release.)"
+Write-Host "Done. In Premiere, open Window > UXP Plugins > Krugmosh: it should say helper online." -ForegroundColor Green
+Write-Host "(No panel yet? Double-click krugmosh.ccx from the GitHub release.)"

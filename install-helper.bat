@@ -1,6 +1,6 @@
 @echo off
-title Datamosh helper - install
-echo Installs the Datamosh helper (it does the encoding for the Premiere panel):
+title Krugmosh helper - install
+echo Installs the Krugmosh helper (it does the encoding for the Premiere panel):
 echo   1. checks Python 3 and installs two Python packages
 echo   2. checks ffmpeg (offers to install it)
 echo   3. starts the helper hidden, now and every time Windows starts

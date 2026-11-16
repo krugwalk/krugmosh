@@ -1,8 +1,8 @@
 {
   "manifestVersion": 5,
-  "id": "com.local.datamosh",
-  "name": "Datamosh",
-  "version": "1.1.0",
+  "id": "com.krugwalk.krugmosh",
+  "name": "Krugmosh",
+  "version": "1.2.0",
   "main": "index.html",
   "host": {
     "app": "premierepro",
@@ -11,8 +11,8 @@
   "entrypoints": [
     {
       "type": "panel",
-      "id": "datamoshPanel",
-      "label": { "default": "Datamosh" },
+      "id": "krugmoshPanel",
+      "label": { "default": "Krugmosh" },
       "minimumSize": { "width": 240, "height": 320 },
       "maximumSize": { "width": 2000, "height": 2000 },
       "preferredDockedSize": { "width": 300, "height": 560 },

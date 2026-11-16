@@ -1,5 +1,5 @@
 """
-Datamosh helper, windowless.
+Krugmosh helper, windowless.
 
 Runs the helper (mosh_server.py) with no console window: double-click this file, or
 let install-helper.bat start it with Windows. Messages go to helper.log next to this file.

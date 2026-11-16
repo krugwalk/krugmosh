@@ -1,4 +1,4 @@
-/* Datamosh panel for Premiere Pro (UXP).
+/* Krugmosh panel for Premiere Pro (UXP).
  *
  * Flow: read the selected clips on the timeline -> send their file paths and
  * in/out ranges to the local helper (mosh_server.py) -> poll for progress ->
@@ -39,7 +39,7 @@ const DEFAULTS = {
   keepAvi: false, audioOn: true, targetOn: false, pickSens: 4, trail: 30, blockSize: 16, bleed: 3,
   mode: "auto", showMarkers: false, source: "timeline",
 };
-const SETTINGS_KEY = "datamosh.settings.v1";
+const SETTINGS_KEY = "krugmosh.settings.v1";
 
 // ------------------------------------------------------------------ settings
 
@@ -615,7 +615,7 @@ async function ourMarkers(sequence) {
 async function removeOurMarkers(project, sequence) {
   const { markers, ours } = await ourMarkers(sequence);
   if (!ours.length) return 0;
-  transact(project, "Clear Datamosh markers", (compound) => {
+  transact(project, "Clear Krugmosh markers", (compound) => {
     for (const m of ours) compound.addAction(markers.createRemoveMarkerAction(m));
   });
   return ours.length;
@@ -653,7 +653,7 @@ async function syncMarkers(force) {
   logLine(`Timeline markers: placing ${items.length} (${red} red, ${items.length - red} green)…`);
   const { project, sequence } = await getProjectAndSequence();
   const removed = await removeOurMarkers(project, sequence);
-  if (removed) logLine(`  removed ${removed} old Datamosh marker(s)`);
+  if (removed) logLine(`  removed ${removed} old Krugmosh marker(s)`);
 
   const zero = ppro.TickTime.TIME_ZERO || ppro.TickTime.createWithSeconds(0);
   const makeAdd = (markers, x) => {
@@ -663,12 +663,12 @@ async function syncMarkers(force) {
       ppro.Marker.MARKER_TYPE_COMMENT,
       ppro.TickTime.createWithSeconds(x.t),
       zero,
-      `Datamosh: clip ${x.k.clip + 1}, frame ${x.k.frame} (${what})`);
+      `Krugmosh: clip ${x.k.clip + 1}, frame ${x.k.frame} (${what})`);
   };
 
   // All markers in one undo step; if Premiere refuses that, add them one at a time.
   let { markers } = await ourMarkers(sequence);
-  const okAll = transact(project, "Datamosh markers", (compound) => {
+  const okAll = transact(project, "Krugmosh markers", (compound) => {
     for (const x of items) compound.addAction(makeAdd(markers, x));
   });
   let placed = (await ourMarkers(sequence)).ours.length;
@@ -677,7 +677,7 @@ async function syncMarkers(force) {
     let fails = 0;
     for (const x of items) {
       markers = (await ourMarkers(sequence)).markers;
-      if (!transact(project, "Datamosh marker", (compound) => compound.addAction(makeAdd(markers, x)))) fails++;
+      if (!transact(project, "Krugmosh marker", (compound) => compound.addAction(makeAdd(markers, x)))) fails++;
     }
     placed = (await ourMarkers(sequence)).ours.length;
     logLine(`  add (one by one): ${items.length - fails} ok, ${fails} refused, ${placed} on timeline`,
@@ -687,7 +687,7 @@ async function syncMarkers(force) {
   // Colour them (a marker has to exist before its colour can be set).
   const fresh = await ourMarkers(sequence);
   if (fresh.ours.length) {
-    const okColor = transact(project, "Datamosh marker colours", (compound) => {
+    const okColor = transact(project, "Krugmosh marker colours", (compound) => {
       for (const m of fresh.ours) compound.addAction(m.createSetColorByIndexAction(markerColor(m.getName())));
     });
     logLine(`  colours: ${okColor ? "ok" : "refused"}`);
@@ -714,11 +714,11 @@ async function onShowMarkersChange() {
 async function onClearMarkers() {
   clearTimeout(markerTimer);
   lastMarkerSig = null;
-  if (PREVIEW) { logLine("(preview mode: would remove Datamosh markers)"); return; }
+  if (PREVIEW) { logLine("(preview mode: would remove Krugmosh markers)"); return; }
   try {
     const { project, sequence } = await getProjectAndSequence();
     const n = await removeOurMarkers(project, sequence);
-    logLine(`Removed ${n} Datamosh marker(s) from the timeline.`);
+    logLine(`Removed ${n} Krugmosh marker(s) from the timeline.`);
   } catch (e) {
     logLine("Couldn't remove markers: " + (e.message || e), true);
   }
@@ -1091,13 +1091,13 @@ async function checkHelper() {
 
 /**
  * Where the helper lives, as written by install-helper.bat to
- * %APPDATA%\Datamosh\home.txt (the .ccx from GitHub doesn't know the folder).
+ * %APPDATA%\Krugmosh\home.txt (the .ccx from GitHub doesn't know the folder).
  */
 function helperHomeFromFile() {
   try {
     const os = require("os");
     const fs = require("fs");
-    const file = os.homedir() + "\\AppData\\Roaming\\Datamosh\\home.txt";
+    const file = os.homedir() + "\\AppData\\Roaming\\Krugmosh\\home.txt";
     for (const p of [file, "file:" + file]) {
       try {
         const txt = String(fs.readFileSync(p, { encoding: "utf-8" })).trim();
@@ -1108,23 +1108,23 @@ function helperHomeFromFile() {
   return "";
 }
 
-/** Launch the windowless helper (datamosh_helper.pyw) from inside Premiere. */
+/** Launch the windowless helper (krugmosh_helper.pyw) from inside Premiere. */
 async function onStartHelper() {
   const btn = $("btnStartHelper");
   btn.disabled = true;
   syncDisabled();
   try {
     const uxp = require("uxp");
-    // Installed copy: config.js says where the datamosh folder is. While developing the
-    // panel lives in datamosh\panel, so the helper is one folder up.
-    let root = String(window.DATAMOSH_HOME || "").replace(/[\\/]+$/, "");
+    // Installed copy: config.js says where the krugmosh folder is. While developing the
+    // panel lives in krugmosh\panel, so the helper is one folder up.
+    let root = String(window.KRUGMOSH_HOME || "").replace(/[\\/]+$/, "");
     if (!root) root = helperHomeFromFile();
     if (!root) {
       const folder = await uxp.storage.localFileSystem.getPluginFolder();
       root = String(folder.nativePath).replace(/[\\/]+$/, "").replace(/[\\/]panel$/i, "");
     }
-    const target = root + "\\datamosh_helper.pyw";
-    const res = await uxp.shell.openPath(target, "Starts the Datamosh helper in the background.");
+    const target = root + "\\krugmosh_helper.pyw";
+    const res = await uxp.shell.openPath(target, "Starts the Krugmosh helper in the background.");
     if (res) throw new Error(res);
     logLine("Starting the helper in the background…");
     for (let i = 0; i < 10 && !state.helperOk; i++) {
@@ -1132,11 +1132,11 @@ async function onStartHelper() {
       await checkHelper();
     }
     if (!state.helperOk) {
-      logLine("The helper didn't come up. Check helper.log in the Datamosh app folder.", true);
+      logLine("The helper didn't come up. Check helper.log in the Krugmosh app folder.", true);
     }
   } catch (e) {
     logLine("Premiere couldn't start the helper (" + (e.message || e) + "). " +
-            "Double-click datamosh_helper.pyw in the Datamosh app folder instead, " +
+            "Double-click krugmosh_helper.pyw in the Krugmosh app folder instead, " +
             "or run install-helper.bat once.", true);
   } finally {
     btn.disabled = false;
@@ -1284,7 +1284,7 @@ async function readSelection() {
   } catch (e) { /* fall back to the first clip's settings */ }
   try {
     const p = cleanPath(project.path);
-    if (p) seqInfo.outputDir = p.replace(/[\\/][^\\/]*$/, "") + "\\Datamosh Renders";
+    if (p) seqInfo.outputDir = p.replace(/[\\/][^\\/]*$/, "") + "\\Krugmosh Renders";
   } catch (e) { /* default dir */ }
 
   return { clips, warnings, seqInfo };
@@ -1411,7 +1411,7 @@ async function placeResult(outputPath, seconds, anchorIdx) {
         ? editor.createInsertProjectItemAction(projectItem, time, vTrack, aTrack, true)
         : editor.createOverwriteItemAction(projectItem, time, vTrack, aTrack);
       compound.addAction(action);
-    }, "Datamosh");
+    }, "Krugmosh");
   });
   if (!placed) throw new Error("Couldn't place the clip on the timeline (it is in the project panel).");
   const where = `V${vTrack + 1}` + (state.lastHadAudio ? ` + A${aTrack + 1}` : "") +
@@ -1503,7 +1503,7 @@ async function onUseSelection(opts) {
     renderRangeInfo();
     renderPicker();
     renderBloomPoint();
-    $("outDir").textContent = "Saves to: " + (seqInfo.outputDir || "Videos\\Datamosh Renders");
+    $("outDir").textContent = "Saves to: " + (seqInfo.outputDir || "Videos\\Krugmosh Renders");
     $("outDir").title = seqInfo.outputDir || "";
     setStatus(clips.length >= 2 ? `Ready · ${clips.length} clips`
               : clips.length === 1 ? "Ready · 1 clip (bloom only)" : "No clips selected",
@@ -1632,7 +1632,7 @@ async function renderSelection() {
     try {
       const item = await sub.getProjectItem();
       const bin = item.getParentBin();
-      const removed = transact(project, "Remove Datamosh temp sequence",
+      const removed = transact(project, "Remove Krugmosh temp sequence",
                                (c) => c.addAction(bin.createRemoveItemAction(item)));
       if (!removed) logLine("Note: couldn't delete the temporary subsequence; you can delete it from the Project panel.");
     } catch (e) {

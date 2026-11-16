@@ -1,6 +1,6 @@
 @echo off
-title Datamosh - uninstall
-echo Removes the Datamosh panel from Premiere Pro and stops the helper
+title Krugmosh - uninstall
+echo Removes the Krugmosh panel from Premiere Pro and stops the helper
 echo (and stops it starting with Windows). Close Premiere Pro first.
 echo.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0app\scripts\plugin_tools.ps1" uninstall

@@ -34,17 +34,17 @@ try:
 except ImportError:
     np = None
 
-HOST, PORT = "127.0.0.1", int(os.environ.get("DATAMOSH_PORT", "8765"))
+HOST, PORT = "127.0.0.1", int(os.environ.get("KRUGMOSH_PORT", "8765"))
 VERSION = 11  # bump when the panel needs new helper features (panel checks this)
 JOBS = {}      # id -> JSON-safe job state
 CANCELS = {}   # id -> threading.Event
 LOCK = threading.Lock()
 SEEN_CLIENTS = set()
-PREVIEW_DIR = Path(tempfile.gettempdir()) / "datamosh_previews"
-RENDER_DIR = Path(tempfile.gettempdir()) / "datamosh_renders"
+PREVIEW_DIR = Path(tempfile.gettempdir()) / "krugmosh_previews"
+RENDER_DIR = Path(tempfile.gettempdir()) / "krugmosh_renders"
 
 
-PRESET_NAME = "Datamosh ProRes 422 HQ (Match Source).epr"
+PRESET_NAME = "Krugmosh ProRes 422 HQ (Match Source).epr"
 
 
 def make_preset():
@@ -197,7 +197,7 @@ def run_job(job_id, req):
             pk = PICKS.get(req.get("pick"))
             if pk and req.get("rendered"):
                 wait_for_file(pk["clip"]["path"], log, CANCELS[job_id])
-            out_dir = Path(req.get("outputDir") or Path.home() / "Videos" / "Datamosh Renders")
+            out_dir = Path(req.get("outputDir") or Path.home() / "Videos" / "Krugmosh Renders")
             output = out_dir / f"moshed_target_{datetime.now():%Y%m%d_%H%M%S}.mov"
             PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
             result = run_target(job_id, req, output, log)
@@ -214,7 +214,7 @@ def run_job(job_id, req):
             if not Path(path).exists():
                 raise ValueError(f"file not found: {path}")
 
-        out_dir = Path(req.get("outputDir") or Path.home() / "Videos" / "Datamosh Renders")
+        out_dir = Path(req.get("outputDir") or Path.home() / "Videos" / "Krugmosh Renders")
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         output = out_dir / f"moshed_{stamp}.mov"
         avi = out_dir / f"moshed_{stamp}.avi" if req.get("keepAvi") else None
@@ -447,14 +447,14 @@ def already_running():
 
 def main():
     if already_running():
-        print(f"A Datamosh helper is already running on port {PORT}; not starting another.")
+        print(f"A Krugmosh helper is already running on port {PORT}; not starting another.")
         return
     try:
         server = Server((HOST, PORT), Handler)
     except OSError as e:
         print(f"Port {PORT} is busy ({e}); is another helper running?")
         return
-    print(f"Datamosh helper v{VERSION} listening on http://{HOST}:{PORT}  (Ctrl+C to stop)")
+    print(f"Krugmosh helper v{VERSION} listening on http://{HOST}:{PORT}  (Ctrl+C to stop)")
     try:
         print(f"ffmpeg: {mosh.find_tool('ffmpeg')}")
     except SystemExit as e:

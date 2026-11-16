@@ -129,7 +129,7 @@ ENCODE_VERSION = 2   # bump when encoder settings change, so old cached encodes 
 DEBLOCK = "deblock=filter=strong:block=8:alpha=0.15:beta=0.1:gamma=0.1:delta=0.1"
 
 
-CACHE_DIR = Path(tempfile.gettempdir()) / "datamosh_cache"
+CACHE_DIR = Path(tempfile.gettempdir()) / "krugmosh_cache"
 CACHE_MAX_AGE = 24 * 3600
 
 
