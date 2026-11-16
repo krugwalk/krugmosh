@@ -7,71 +7,57 @@ ProRes clip lands on the track above. It works exactly like the manual Avidemux
 method: encode to Xvid (0 B-frames, GOP 999), delete every I-frame except the
 first, optionally delete frames around the cut.
 
-```
-datamosh/
-  panel/            the Premiere panel (UXP): manifest.json, index.html, styles.css, main.js, config.js
-  install_plugin.bat      package + install the panel into Premiere (Window > UXP Plugins)
-  uninstall_plugin.bat    remove it again
-  mosh.py           the moshing engine (also usable from the command line)
-  mosh_server.py    local helper the panel talks to (Premiere panels can't run programs)
-  datamosh_helper.pyw     the helper, windowless (double-click; logs to helper.log)
-  install_autostart.bat   run once: helper starts hidden with Windows, forever
-  uninstall_autostart.bat undo that
-  stop_helper.bat         stop any running helper
-  start_helper.bat        the helper in a visible window (handy for debugging)
-  scripts/          helper_tools.ps1 used by the .bat files
-  test-output/      sample clips and results
-```
+![Windows](https://img.shields.io/badge/platform-Windows-0078d4) ![Premiere Pro 25.6+](https://img.shields.io/badge/Premiere%20Pro-25.6%2B-9999ff) ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-## Install into Premiere Pro (permanent)
+## Install
 
-Double-click **`install_plugin.bat`**. It packages the panel as `build\datamosh.ccx` and
-installs it with Adobe's own plugin installer. Restart Premiere Pro, then open
-**Window > UXP Plugins > Datamosh** any time; no UXP Developer Tools needed.
+**Close Premiere, download this repo into a folder you'll keep, and double-click
+`setup.bat`.** Then open **Window > UXP Plugins > Datamosh** in Premiere Pro. It stays
+installed like any other plugin: no UXP Developer Tools, no reloading.
 
-- After changing the panel, run `install_plugin.bat` again (bump `version` in
-  `panel/manifest.json` if Premiere keeps showing the old one).
-- `uninstall_plugin.bat` removes it.
-- If you also load the panel from UXP Developer Tools, unload it there first: both use
-  the same plugin id.
+Full guide, manual steps, updating and troubleshooting: **[INSTALL.md](INSTALL.md)**.
 
-## The helper (no window needed)
+Needs Windows, Premiere Pro 25.6+, the Creative Cloud app, Python 3 and ffmpeg
+(`setup.bat` checks and offers to install the last two).
 
-Premiere panels aren't allowed to run programs like ffmpeg, so a small helper does
-the encoding. It doesn't need a window:
+## How to use
 
-- **Easiest:** run `install_autostart.bat` once. The helper then starts hidden every
-  time Windows starts, and you never think about it again. (`uninstall_autostart.bat`
-  removes it.)
-- **Or:** click **Start helper** in the panel's red banner (if Premiere allows it), or
-  double-click `datamosh_helper.pyw`. Either starts it hidden until you log off.
-- Only one helper ever runs; starting another just exits. Messages go to `helper.log`.
-- After updating the code, run `stop_helper.bat`, then start it again.
-
-## One-time setup
-
-1. **Install UXP Developer Tools.** Open the Creative Cloud app, search for
-   "UXP Developer Tools" and install it.
-2. **Allow developer plugins in Premiere.** In Premiere Pro, open
-   Settings → Plugins and turn on **Enable developer mode**, then restart Premiere.
-   (If UXP Developer Tools doesn't list Premiere Pro as connected, this is usually why.)
-
-## Each time you use it
-
-1. **Helper:** nothing to do if you ran `install_autostart.bat`; otherwise click
-   **Start helper** in the panel (see above).
-2. **Load the panel.** Open UXP Developer Tools → **Add Plugin** → choose
-   `datamosh/panel/manifest.json` (first time only) → click **••• → Load**.
-   The panel opens in Premiere (also under Window → UXP Plugins → Datamosh).
-3. **Mosh.**
-   - Put two clips next to each other on a video track and select both.
-   - Click **Use selection**. The dot top-right should say *helper online*.
-   - Adjust trims if you like, then **MOSH IT**.
-   - The result is saved to `Datamosh Renders` next to your project file, imported,
-     and placed on the track above your clips.
+1. Put two clips next to each other on a video track and select both.
+2. Click **Use selection**. The dot top-right should say *helper online*.
+3. Adjust the settings if you like, then **MOSH IT**.
+4. The result is saved to `Datamosh Renders` next to your project file, imported,
+   and placed on the track above your clips.
 
 Tip: moshing looks best when the **incoming** clip has lots of movement
 (camera moves, people moving). Flat or static shots barely smear.
+
+## What's in the folder
+
+```
+datamosh-premiere/
+  setup.bat               one-click install (Python packages, ffmpeg, plugin, helper)
+  panel/                  the Premiere panel (UXP): manifest.json, index.html, styles.css, main.js, controls.js
+  install_plugin.bat      install the panel into Premiere (Window > UXP Plugins)
+  uninstall_plugin.bat    remove it again
+  install_autostart.bat   helper starts hidden with Windows
+  uninstall_autostart.bat undo that
+  start_helper.bat        the helper in a visible window (for debugging)
+  stop_helper.bat         stop any running helper
+  mosh.py                 the moshing engine (also usable from the command line)
+  objects.py, target.py   colour clocks / targeted mosh
+  mosh_server.py          local helper the panel talks to (Premiere panels can't run programs)
+  datamosh_helper.pyw     the helper, windowless (logs to helper.log)
+  scripts/                PowerShell used by the .bat files
+  test-output/            small sample clips
+```
+
+## The helper
+
+Premiere panels aren't allowed to run programs like ffmpeg, so a small helper does the
+encoding. It only listens on `127.0.0.1` (your own computer). With autostart it runs
+hidden from Windows startup; otherwise click **Start helper** in the panel's red
+banner. Only one helper ever runs. After updating the code, run `stop_helper.bat` and
+start it again.
 
 ## Settings
 
@@ -141,7 +127,11 @@ Premiere; it uses the clips in `test-output/`. To test a helper without stopping
 the one you're using: `set DATAMOSH_PORT=8766` then `python mosh_server.py`, and
 open the panel with `?port=8766`.
 
-## Known limits (v0.4)
+## Known limits
 
 - In **Original media** mode, effects and speed changes are ignored (use **As on timeline**).
 - In **Original media** mode, nested sequences / graphics can't be moshed (no media file).
+
+## License
+
+MIT, see [LICENSE](LICENSE).
