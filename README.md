@@ -60,7 +60,7 @@ plugins**), run `uninstall.bat` in the helper folder, then delete that folder.
 ### Building from source
 
 `powershell -File app\scripts\plugin_tools.ps1 release` builds both release files into
-`appuildelease`. `plugin_tools.ps1 install` installs the panel straight from this
+`app\build\release`. `plugin_tools.ps1 install` installs the panel straight from this
 folder.
 
 ## License
