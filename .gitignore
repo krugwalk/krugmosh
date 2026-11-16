@@ -2,19 +2,14 @@
 __pycache__/
 *.pyc
 
-# helper runtime log
+# helper runtime files
 helper.log
-
-# generated from Premiere's own preset on first use (Adobe's file, not ours)
 presets/
 
-# renders and outputs (the small a/b/c/d test clips are kept)
-test-output/preview-renders/
-test-output/moshed.*
-test-output/*.png
+# local test clips, renders and outputs
+test-output/
 *.mov
 *.avi
-!test-output/*.mp4
 
-# packaged plugin (made by install_plugin.bat)
+# packaged plugin (made by setup.bat)
 build/

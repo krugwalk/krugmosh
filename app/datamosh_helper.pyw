@@ -1,9 +1,9 @@
 """
 Datamosh helper, windowless.
 
-Runs the same helper as start_helper.bat, but with no console window: double-click
-this file (or let install_autostart.bat start it with Windows). Messages go to
-helper.log next to this file. Stop it with stop_helper.bat.
+Runs the helper (mosh_server.py) with no console window: double-click this file, or
+let setup.bat start it with Windows. Messages go to helper.log next to this file.
+uninstall.bat stops it.
 """
 import os
 import sys

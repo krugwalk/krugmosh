@@ -1,136 +1,64 @@
 # Datamosh for Premiere Pro
 
-Avidemux-style datamosh transitions, inside Premiere Pro.
-
-Select two (or more) clips with a cut between them, click **MOSH IT**, and a moshed
-ProRes clip lands on the track above. It works exactly like the manual Avidemux
-method: encode to Xvid (0 B-frames, GOP 999), delete every I-frame except the
-first, optionally delete frames around the cut.
+Avidemux-style datamosh transitions as a Premiere Pro panel. Select clips with a cut
+between them, click **MOSH IT**, and the moshed clip lands on the track above.
 
 ![Windows](https://img.shields.io/badge/platform-Windows-0078d4) ![Premiere Pro 25.6+](https://img.shields.io/badge/Premiere%20Pro-25.6%2B-9999ff) ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-## Install
+## Install (permanent)
 
-**Close Premiere, download this repo into a folder you'll keep, and double-click
-`setup.bat`.** Then open **Window > UXP Plugins > Datamosh** in Premiere Pro. It stays
-installed like any other plugin: no UXP Developer Tools, no reloading.
+Needs Windows, **Premiere Pro 25.6+** and the **Creative Cloud app**.
 
-Full guide, manual steps, updating and troubleshooting: **[INSTALL.md](INSTALL.md)**.
+1. **Download:** click **Code > Download ZIP** above and unzip it, or run:
 
-Needs Windows, Premiere Pro 25.6+, the Creative Cloud app, Python 3 and ffmpeg
-(`setup.bat` checks and offers to install the last two).
+   ```bash
+   git clone https://github.com/krugwalk/datamosh-premiere.git
+   ```
 
-## How to use
+2. **Put the folder somewhere you'll keep it**, e.g. `C:\Tools\datamosh-premiere`
+   (not Downloads). The plugin runs from this folder, so don't move or delete it.
+3. **Close Premiere Pro.**
+4. **Double-click `setup.bat`.** It:
+   - installs Python 3 if needed (asks first), plus two Python packages,
+   - installs ffmpeg if needed (asks first),
+   - installs the panel into Premiere with Adobe's own plugin installer,
+   - makes the helper start hidden with Windows.
+5. **Open Premiere Pro > Window > UXP Plugins > Datamosh.** The dot at the top right
+   should say **helper online**.
+
+It now stays installed like any other plugin: no UXP Developer Tools, nothing to load
+each time.
+
+## Use
 
 1. Put two clips next to each other on a video track and select both.
-2. Click **Use selection**. The dot top-right should say *helper online*.
-3. Adjust the settings if you like, then **MOSH IT**.
-4. The result is saved to `Datamosh Renders` next to your project file, imported,
-   and placed on the track above your clips.
+2. Click **Use selection**, adjust settings (hover any setting to see what it does).
+3. Click **MOSH IT**. The result is saved to `Datamosh Renders` next to your project
+   and placed on the track above.
 
-Tip: moshing looks best when the **incoming** clip has lots of movement
-(camera moves, people moving). Flat or static shots barely smear.
+Moshing looks best when the incoming clip has lots of movement.
 
-## What's in the folder
+## Update
 
-```
-datamosh-premiere/
-  setup.bat               one-click install (Python packages, ffmpeg, plugin, helper)
-  panel/                  the Premiere panel (UXP): manifest.json, index.html, styles.css, main.js, controls.js
-  install_plugin.bat      install the panel into Premiere (Window > UXP Plugins)
-  uninstall_plugin.bat    remove it again
-  install_autostart.bat   helper starts hidden with Windows
-  uninstall_autostart.bat undo that
-  start_helper.bat        the helper in a visible window (for debugging)
-  stop_helper.bat         stop any running helper
-  mosh.py                 the moshing engine (also usable from the command line)
-  objects.py, target.py   colour clocks / targeted mosh
-  mosh_server.py          local helper the panel talks to (Premiere panels can't run programs)
-  datamosh_helper.pyw     the helper, windowless (logs to helper.log)
-  scripts/                PowerShell used by the .bat files
-  test-output/            small sample clips
-```
+Replace the files in the same folder with the new version (or `git pull`), close
+Premiere, and run `setup.bat` again.
 
-## The helper
+## Uninstall
 
-Premiere panels aren't allowed to run programs like ffmpeg, so a small helper does the
-encoding. It only listens on `127.0.0.1` (your own computer). With autostart it runs
-hidden from Windows startup; otherwise click **Start helper** in the panel's red
-banner. Only one helper ever runs. After updating the code, run `stop_helper.bat` and
-start it again.
+Close Premiere, run `uninstall.bat`, then delete the folder.
 
-## Settings
+## Troubleshooting
 
-Hover any setting in the panel to see what it does. Settings are remembered between sessions; **Reset** restores defaults.
-
-### Clip source
-
-| Option | What gets moshed |
+| Problem | Fix |
 |---|---|
-| **As on timeline** (default) | Premiere first renders the selected clips exactly as they look in the sequence (crop, scale, position, speed, colour, effects) via a temporary subsequence and a ProRes 422 HQ "match source" preset, then that render is moshed. The render is reused between Scan and Mosh; click **Use selection** again after changing effects. Renders live in your temp folder and are deleted after a day. |
-| **Original media** | The untouched source files (just the trimmed in/out). Faster, but ignores effects and speed. |
+| Not under **Window > UXP Plugins** | Restart Premiere. It needs Premiere Pro 25.6 or newer. |
+| `Failed to install` during setup | Close Premiere, make sure the Creative Cloud app is installed and signed in, run `setup.bat` again. |
+| Panel says **helper offline** | Click **Start helper** in the panel, or run `setup.bat` again. Errors are in `app\helper.log`. |
+| `Could not find ffmpeg` | Run `setup.bat` again and let it install ffmpeg. |
+| You moved the folder | Run `setup.bat` again from the new place. |
 
-### Choosing which keyframes go
-
-| Option | How |
-|---|---|
-| **Auto** (default) | One click: removes every keyframe after the first (or only those at cuts). |
-| **Only between sequence In/Out** | Auto mode checkbox. Set In/Out on the timeline (I / O), click **Use selection**, and only keyframes inside that range are removed. |
-| **Pick keyframes** | Switch mode, click **Scan keyframes**: every keyframe is listed with a thumbnail, its time and a tag (START / CUT / scene change). Tick exactly the ones to delete; **All / Cuts / None** are shortcuts. The mosh reuses the scan's encode, so it isn't encoded twice. If you change clips, Block size or (with healing on) cuts/trims, the panel asks you to scan again. |
-| **Per-cut on/off** | Click the **▼ mosh here ▼** marker between two clips to turn it into a **── hard cut ──** (and back). In Pick mode the cut's keyframe tick follows it. |
-| **Heal after** | Slider: puts a clean keyframe back N frames after each moshed cut, so the picture snaps back at a point you choose instead of fading out on its own. |
-| **Bloom** | Tick it: one motion frame is copied and pasted *Repeat* times (up to 3000), like in Avidemux, so the picture keeps following that movement and blooms out. Which frame: **Strongest motion** (default, picked after each cut), **After cut** (*Bloom at* frames after each cut) or **Playhead** (park the playhead on a frame, click **Use playhead**). In the first two, click the **✿ bloom** chip on a cut in the clip list to choose which cuts get a bloom. With a single clip there's no cut: use Strongest motion (searches the whole clip) or Playhead. **Smooth** (default on) repeats a low-quality copy of the frame and softens block edges for soft trails and natural colours; off = harsher, colourful blow-outs. Adds *Repeat* frames to the moshed clip. |
-| **Smear boost** / **Smear strength** | Glitch section. Right after each moshed cut, the first N motion frames are each played *strength* times, so the whole movement is replayed and the old picture is dragged much harder. |
-| **Acid colour** | Glitch section. Style: **Prism** (brightness mapped onto a rainbow: many pure colours per frame), **Pure colours** (clipped to primaries) or **Tint**. **Hue spin** turns all colours around the wheel every frame like a fast clock (30°/frame ≈ 3 turns a second). **Colour clocks** gives every original colour its own clock: everything that was the same colour (a red shirt, white text, a blue sky) cycles together, different colours cycle at their own speed and direction; **Colours** sets how many colour families (3–12, plus darks / mids / lights). Needs `python -m pip install numpy opencv-python-headless`. |
-| **⚡ Acid preset** | One click towards the fast-cut neon glitch look: every cut moshed, raw bloom 8 on the strongest motion, smear boost 10 ×3, Pure colours 600% / 180% / brightness +5 / posterize 3, every colour on its own clock (30°/frame). Works best with many short, very different shots that have lots of movement. |
-| **Targeted mosh** | Mosh only one object. Tick it, put the playhead on a frame where the object is visible, click **Pick object**, click the object in the picture (more clicks add parts; **Undo** / **Clear**), adjust **Sensitivity** (how far the magic-wand selection spreads by colour), then **Confirm object**. The object is tracked through the clip (optical flow + re-growing the selection each frame); only it gets moshed (its pixels dragged along the motion in blocks, like motion-only P-frames) and it leaves a fading **Trail**. **Block size** sets the block look, **Bleed-through** how much of the real picture comes back each frame. The clip keeps its timing and audio. |
-| **Include audio** | On by default. The moshed clip carries the clips' audio, kept frame-accurately in sync: removed keyframes and trims cut the matching audio, smear boost stutters it like the picture, bloom inserts silence. On the timeline it goes on an audio track that is empty at that spot (or a new track), so existing audio is never overwritten. |
-| **GOP size** | Longest gap between keyframes when encoding. 999 (default, like the tutorial) = keyframes only at scene changes. Lower values (e.g. 30) add regular keyframes, giving Pick mode more points to choose from. |
-
-| Control | What it does | Avidemux equivalent |
-|---|---|---|
-| Drop frames before cut | Deletes N frames from the end of the outgoing clip | Selecting/deleting frames before the join |
-| Drop frames after cut | Deletes N frames from the start of the incoming clip | Selecting/deleting frames after the join |
-| Block size | Xvid quantizer (1 = fine, 12 = huge blocks) | Encoder quality setting |
-| Keep clips clean, only mosh at the cut | Keeps scene-change keyframes *inside* clips | Leaving those I-frames alone |
-| Keep raw .avi copy | Also saves the raw moshed Xvid file | The file you'd save from Avidemux |
-
-While moshing, the button turns into **CANCEL** (half-written files are cleaned up).
-When done, the **Result** card shows frames around the cut (−3 … +24 frames) and
-**Show in Explorer** opens the rendered file's folder. **Details** shows the full log.
-
-## Command line (no Premiere)
-
-```
-python mosh.py clipA.mp4 clipB.mp4 -o moshed.mov --trim-b 3
-python mosh.py "clipA.mp4@2-5.5" "clipB.mp4@0-4" -o moshed.mov   # use only part of each clip (seconds)
-python mosh.py a.mp4 b.mp4 c.mp4 --scan                            # list keyframes as CLIP:FRAME
-python mosh.py a.mp4 b.mp4 c.mp4 -o out.mov --keyframes 1:0,2:45   # delete exactly these
-python mosh.py a.mp4 b.mp4 c.mp4 -o out.mov --hard-cuts 2          # leave cut 2 as a normal cut
-python mosh.py a.mp4 b.mp4 -o out.mov --heal-after 20              # snap back 20 frames after the cut
-python mosh.py a.mp4 b.mp4 c.mp4 -o out.mov --range 2-5.5          # only remove keyframes in 2-5.5 s
-python mosh.py a.mp4 b.mp4 -o out.mov --bloom 500                  # bloom the strongest-motion frame 500x
-python mosh.py a.mp4 b.mp4 -o out.mov --bloom 500 --bloom-point 1:45   # bloom clip 2, frame 45
-python mosh.py a.mp4 b.mp4 -o out.mov --bloom 500 --bloom-raw      # harsher, un-smoothed bloom
-python mosh.py a.mp4 b.mp4 c.mp4 -o out.mov --smear 10 --smear-x 3 --acid --neon   # glitch look
-python mosh.py a.mp4 b.mp4 -o out.mov --no-audio                   # picture only
-python mosh.py a.mp4 b.mp4 --scan --gop 30                         # keyframe at least every 30 frames
-```
-
-Encoded clips are cached in your temp folder (`datamosh_cache`, cleared after a day),
-so re-moshing the same clips with different settings is fast.
-
-## Developing
-
-Open `panel/index.html` in a browser (served over http) to preview the UI without
-Premiere; it uses the clips in `test-output/`. To test a helper without stopping
-the one you're using: `set DATAMOSH_PORT=8766` then `python mosh_server.py`, and
-open the panel with `?port=8766`.
-
-## Known limits
-
-- In **Original media** mode, effects and speed changes are ignored (use **As on timeline**).
-- In **Original media** mode, nested sequences / graphics can't be moshed (no media file).
+Why a helper? Premiere panels can't run programs like ffmpeg, so a small helper in
+`app\` does the encoding. It only listens on `127.0.0.1` (your own computer).
 
 ## License
 

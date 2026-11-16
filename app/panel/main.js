@@ -1083,7 +1083,7 @@ async function checkHelper() {
   $("helperText").textContent = ok ? "helper online" : outdated ? "restart helper" : "offline";
   $("offlineBanner").className = "banner" + (ok ? " hidden" : "");
   $("bannerText").innerHTML = outdated
-    ? "The running helper is an <b>older version</b>. Run <b>stop_helper.bat</b>, then start it again."
+    ? "The running helper is an <b>older version</b>. Run <b>setup.bat</b> again to restart it."
     : "The helper isn't running.";
   $("btnStartHelper").className = "btn-small" + (outdated ? " hidden" : "");
   updateMoshButton();
@@ -1112,12 +1112,12 @@ async function onStartHelper() {
       await checkHelper();
     }
     if (!state.helperOk) {
-      logLine("The helper didn't come up. Check helper.log in the datamosh folder.", true);
+      logLine("The helper didn't come up. Check helper.log in the Datamosh app folder.", true);
     }
   } catch (e) {
     logLine("Premiere couldn't start the helper (" + (e.message || e) + "). " +
-            "Double-click datamosh_helper.pyw in the datamosh folder instead, " +
-            "or run install_autostart.bat once.", true);
+            "Double-click datamosh_helper.pyw in the Datamosh app folder instead, " +
+            "or run setup.bat once.", true);
   } finally {
     btn.disabled = false;
     syncDisabled();
@@ -1154,7 +1154,7 @@ async function runHelperJob(body, kind) {
   const job = start && start.job;
   if (!r.ok || !job) {
     throw new Error(r.status === 404
-      ? "The helper doesn't support this yet. Close the helper window and run start_helper.bat again."
+      ? "The helper doesn't support this yet. Run setup.bat again to restart it."
       : "The helper didn't start the job" + (start && start.error ? ": " + start.error : "."));
   }
   state.job = job;

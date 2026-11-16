@@ -8,6 +8,6 @@ echo   4. makes the helper start hidden with Windows
 echo.
 echo Keep this folder where it is afterwards: Premiere and the helper run from here.
 echo.
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\setup.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0app\scripts\setup.ps1"
 echo.
 pause
