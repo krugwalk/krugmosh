@@ -6,6 +6,8 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot                      # ...\datamosh
 $pyw = Join-Path $root "datamosh_helper.pyw"
 $shortcut = Join-Path ([Environment]::GetFolderPath("Startup")) "Datamosh helper.lnk"
+# tells the Premiere panel (installed from the .ccx) where the helper is
+$homeFile = Join-Path $env:APPDATA "Datamosh\home.txt"
 
 function Get-Pythonw {
     $python = (Get-Command python -ErrorAction SilentlyContinue).Source
@@ -41,6 +43,8 @@ switch ($Action) {
         $lnk.WorkingDirectory = $root
         $lnk.Description = "Datamosh helper for Premiere Pro (runs hidden)"
         $lnk.Save()
+        New-Item -ItemType Directory -Force (Split-Path $homeFile) | Out-Null
+        [IO.File]::WriteAllText($homeFile, $root, (New-Object System.Text.UTF8Encoding($false)))
         Write-Host "Added to Windows startup: $shortcut"
         $n = Stop-Helper
         if ($n) { Write-Host "Stopped $n running helper(s) so the hidden one can take over." }
@@ -50,6 +54,8 @@ switch ($Action) {
     "uninstall" {
         if (Test-Path $shortcut) { Remove-Item $shortcut -Force; Write-Host "Removed from Windows startup." }
         else { Write-Host "It was not set to start with Windows." }
+        $dir = Split-Path $homeFile
+        if (Test-Path $dir) { Remove-Item $dir -Recurse -Force }
         $n = Stop-Helper
         Write-Host "Stopped $n running helper(s)."
     }

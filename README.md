@@ -7,27 +7,26 @@ between them, click **MOSH IT**, and the moshed clip lands on the track above.
 
 ## Install (permanent)
 
-Needs Windows, **Premiere Pro 25.6+** and the **Creative Cloud app**.
+Needs Windows, **Premiere Pro 25.6+** and the **Creative Cloud app**. Get both files
+from the **[latest release](https://github.com/krugwalk/datamosh-premiere/releases/latest)**.
 
-1. **Download:** click **Code > Download ZIP** above and unzip it, or run:
+### 1. The panel: `datamosh.ccx`
 
-   ```bash
-   git clone https://github.com/krugwalk/datamosh-premiere.git
-   ```
+Download **`datamosh.ccx`** and double-click it. Creative Cloud opens and installs it
+like any Adobe Marketplace plugin. Restart Premiere Pro and open
+**Window > UXP Plugins > Datamosh**. It stays installed for good.
 
-2. **Put the folder somewhere you'll keep it**, e.g. `C:\Tools\datamosh-premiere`
-   (not Downloads). The plugin runs from this folder, so don't move or delete it.
-3. **Close Premiere Pro.**
-4. **Double-click `setup.bat`.** It:
-   - installs Python 3 if needed (asks first), plus two Python packages,
-   - installs ffmpeg if needed (asks first),
-   - installs the panel into Premiere with Adobe's own plugin installer,
-   - makes the helper start hidden with Windows.
-5. **Open Premiere Pro > Window > UXP Plugins > Datamosh.** The dot at the top right
-   should say **helper online**.
+### 2. The helper: `Datamosh-Helper.zip` (once)
 
-It now stays installed like any other plugin: no UXP Developer Tools, nothing to load
-each time.
+Premiere plugins aren't allowed to run programs like ffmpeg, so a small helper does
+the encoding. It only listens on `127.0.0.1` (your own computer).
+
+1. Download **`Datamosh-Helper.zip`** and unzip it somewhere you'll keep it,
+   e.g. `C:\Tools\Datamosh-Helper` (not Downloads). Don't move it afterwards.
+2. Double-click **`install-helper.bat`**. It installs Python 3 and ffmpeg if they're
+   missing (asks first), and starts the helper hidden, now and with every Windows start.
+
+The dot at the top right of the panel should now say **helper online**.
 
 ## Use
 
@@ -40,25 +39,29 @@ Moshing looks best when the incoming clip has lots of movement.
 
 ## Update
 
-Replace the files in the same folder with the new version (or `git pull`), close
-Premiere, and run `setup.bat` again.
+Double-click the new `datamosh.ccx`. If the release says the helper changed too, unzip
+the new `Datamosh-Helper.zip` over the old folder and run `install-helper.bat` again.
 
 ## Uninstall
 
-Close Premiere, run `uninstall.bat`, then delete the folder.
+Remove the panel in the Creative Cloud app (**Stock & Marketplace > Plugins > Manage
+plugins**), run `uninstall.bat` in the helper folder, then delete that folder.
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---|---|
 | Not under **Window > UXP Plugins** | Restart Premiere. It needs Premiere Pro 25.6 or newer. |
-| `Failed to install` during setup | Close Premiere, make sure the Creative Cloud app is installed and signed in, run `setup.bat` again. |
-| Panel says **helper offline** | Click **Start helper** in the panel, or run `setup.bat` again. Errors are in `app\helper.log`. |
-| `Could not find ffmpeg` | Run `setup.bat` again and let it install ffmpeg. |
-| You moved the folder | Run `setup.bat` again from the new place. |
+| `datamosh.ccx` won't install | Make sure the Creative Cloud app is installed and signed in, close Premiere, double-click it again. |
+| Panel says **helper offline** | Click **Start helper** in the panel, or run `install-helper.bat` again. Errors are in `app\helper.log` in the helper folder. |
+| `Could not find ffmpeg` | Run `install-helper.bat` again and let it install ffmpeg. |
+| You moved the helper folder | Run `install-helper.bat` again from the new place. |
 
-Why a helper? Premiere panels can't run programs like ffmpeg, so a small helper in
-`app\` does the encoding. It only listens on `127.0.0.1` (your own computer).
+### Building from source
+
+`powershell -File app\scripts\plugin_tools.ps1 release` builds both release files into
+`appuildelease`. `plugin_tools.ps1 install` installs the panel straight from this
+folder.
 
 ## License
 

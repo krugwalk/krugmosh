@@ -1083,10 +1083,29 @@ async function checkHelper() {
   $("helperText").textContent = ok ? "helper online" : outdated ? "restart helper" : "offline";
   $("offlineBanner").className = "banner" + (ok ? " hidden" : "");
   $("bannerText").innerHTML = outdated
-    ? "The running helper is an <b>older version</b>. Run <b>setup.bat</b> again to restart it."
+    ? "The running helper is an <b>older version</b>. Run <b>install-helper.bat</b> again to restart it."
     : "The helper isn't running.";
   $("btnStartHelper").className = "btn-small" + (outdated ? " hidden" : "");
   updateMoshButton();
+}
+
+/**
+ * Where the helper lives, as written by install-helper.bat to
+ * %APPDATA%\Datamosh\home.txt (the .ccx from GitHub doesn't know the folder).
+ */
+function helperHomeFromFile() {
+  try {
+    const os = require("os");
+    const fs = require("fs");
+    const file = os.homedir() + "\\AppData\\Roaming\\Datamosh\\home.txt";
+    for (const p of [file, "file:" + file]) {
+      try {
+        const txt = String(fs.readFileSync(p, { encoding: "utf-8" })).trim();
+        if (txt) return txt.replace(/^﻿/, "").replace(/[\\/]+$/, "");
+      } catch (e) { /* try the next form */ }
+    }
+  } catch (e) { /* not available */ }
+  return "";
 }
 
 /** Launch the windowless helper (datamosh_helper.pyw) from inside Premiere. */
@@ -1099,6 +1118,7 @@ async function onStartHelper() {
     // Installed copy: config.js says where the datamosh folder is. While developing the
     // panel lives in datamosh\panel, so the helper is one folder up.
     let root = String(window.DATAMOSH_HOME || "").replace(/[\\/]+$/, "");
+    if (!root) root = helperHomeFromFile();
     if (!root) {
       const folder = await uxp.storage.localFileSystem.getPluginFolder();
       root = String(folder.nativePath).replace(/[\\/]+$/, "").replace(/[\\/]panel$/i, "");
@@ -1117,7 +1137,7 @@ async function onStartHelper() {
   } catch (e) {
     logLine("Premiere couldn't start the helper (" + (e.message || e) + "). " +
             "Double-click datamosh_helper.pyw in the Datamosh app folder instead, " +
-            "or run setup.bat once.", true);
+            "or run install-helper.bat once.", true);
   } finally {
     btn.disabled = false;
     syncDisabled();
@@ -1154,7 +1174,7 @@ async function runHelperJob(body, kind) {
   const job = start && start.job;
   if (!r.ok || !job) {
     throw new Error(r.status === 404
-      ? "The helper doesn't support this yet. Run setup.bat again to restart it."
+      ? "The helper doesn't support this yet. Run install-helper.bat again to restart it."
       : "The helper didn't start the job" + (start && start.error ? ": " + start.error : "."));
   }
   state.job = job;

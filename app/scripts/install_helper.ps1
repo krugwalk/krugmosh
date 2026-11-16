@@ -1,8 +1,9 @@
-# One-click setup: Python packages, ffmpeg, Premiere plugin, helper autostart.
+# Helper install: Python packages, ffmpeg, helper autostart.
+# (The Premiere panel itself is installed from datamosh.ccx.)
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 
-function Step($n, $text) { Write-Host ""; Write-Host "[$n/4] $text" -ForegroundColor Cyan }
+function Step($n, $text) { Write-Host ""; Write-Host "[$n/3] $text" -ForegroundColor Cyan }
 function Ask($q) { (Read-Host "$q [Y/n]") -notmatch '^(n|no)$' }
 
 # 1. Python ------------------------------------------------------------------
@@ -13,10 +14,10 @@ if (-not $py) {
     Write-Host "Python 3 was not found." -ForegroundColor Yellow
     if ((Get-Command winget -ErrorAction SilentlyContinue) -and (Ask "Install Python 3.12 with winget now?")) {
         winget install -e --id Python.Python.3.12 --accept-package-agreements --accept-source-agreements
-        Write-Host "Python installed. Close this window and run setup.bat again (so Windows finds it)." -ForegroundColor Yellow
+        Write-Host "Python installed. Close this window and run install-helper.bat again (so Windows finds it)." -ForegroundColor Yellow
         exit 1
     }
-    throw "Install Python 3 from https://www.python.org/downloads/ (tick 'Add python.exe to PATH'), then run setup.bat again."
+    throw "Install Python 3 from https://www.python.org/downloads/ (tick 'Add python.exe to PATH'), then run install-helper.bat again."
 }
 Write-Host "Found $v"
 & python -m pip install --disable-pip-version-check -r (Join-Path $root "requirements.txt")
@@ -37,13 +38,10 @@ if ($ff) {
     Write-Host "ffmpeg is needed. Get it from https://www.gyan.dev/ffmpeg/builds/ and put its bin folder on PATH." -ForegroundColor Yellow
 }
 
-# 3. Premiere plugin ----------------------------------------------------------
-Step 3 "Premiere Pro plugin"
-& (Join-Path $PSScriptRoot "plugin_tools.ps1") install
-
-# 4. Helper autostart ----------------------------------------------------------
-Step 4 "Helper (starts hidden with Windows)"
+# 3. Helper autostart ----------------------------------------------------------
+Step 3 "Helper (starts hidden with Windows)"
 & (Join-Path $PSScriptRoot "helper_tools.ps1") install
 
 Write-Host ""
-Write-Host "Done. Restart Premiere Pro, then open Window > UXP Plugins > Datamosh." -ForegroundColor Green
+Write-Host "Done. In Premiere, open Window > UXP Plugins > Datamosh: it should say helper online." -ForegroundColor Green
+Write-Host "(No panel yet? Double-click datamosh.ccx from the GitHub release.)"
