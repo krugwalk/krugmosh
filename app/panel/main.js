@@ -1083,14 +1083,14 @@ async function checkHelper() {
   $("helperText").textContent = ok ? "helper online" : outdated ? "restart helper" : "offline";
   $("offlineBanner").className = "banner" + (ok ? " hidden" : "");
   $("bannerText").innerHTML = outdated
-    ? "The running helper is an <b>older version</b>. Run <b>install-helper.bat</b> again to restart it."
+    ? "The running helper is an <b>older version</b>. Run <b>Krugmosh-Setup.exe</b> again to restart it."
     : "The helper isn't running.";
   $("btnStartHelper").className = "btn-small" + (outdated ? " hidden" : "");
   updateMoshButton();
 }
 
 /**
- * Where the helper lives, as written by install-helper.bat to
+ * Where the helper lives, as written by Krugmosh-Setup.exe to
  * %APPDATA%\Krugmosh\home.txt (the .ccx from GitHub doesn't know the folder).
  */
 function helperHomeFromFile() {
@@ -1137,7 +1137,7 @@ async function onStartHelper() {
   } catch (e) {
     logLine("Premiere couldn't start the helper (" + (e.message || e) + "). " +
             "Double-click krugmosh_helper.pyw in the Krugmosh app folder instead, " +
-            "or run install-helper.bat once.", true);
+            "or run Krugmosh-Setup.exe once.", true);
   } finally {
     btn.disabled = false;
     syncDisabled();
@@ -1174,7 +1174,7 @@ async function runHelperJob(body, kind) {
   const job = start && start.job;
   if (!r.ok || !job) {
     throw new Error(r.status === 404
-      ? "The helper doesn't support this yet. Run install-helper.bat again to restart it."
+      ? "The helper doesn't support this yet. Run Krugmosh-Setup.exe again to restart it."
       : "The helper didn't start the job" + (start && start.error ? ": " + start.error : "."));
   }
   state.job = job;

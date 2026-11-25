@@ -1,10 +1,10 @@
 # Krugmosh panel: package as a Premiere plugin (.ccx) and install / remove it with
 # Adobe's own installer (Unified Plugin Installer Agent), so it lives in Premiere under
 # Window > UXP Plugins > Krugmosh without UXP Developer Tools.
-#   plugin_tools.ps1 <package|release|install|uninstall>
-#   release: a portable krugmosh.ccx for GitHub (finds the helper through
-#            %APPDATA%\Krugmosh\home.txt, written by install-helper.bat)
-param([Parameter(Mandatory = $true)][ValidateSet("package", "release", "install", "uninstall")] [string]$Action)
+#   plugin_tools.ps1 <package|portable|install|uninstall>
+#   portable: a portable krugmosh.ccx (finds the helper through %APPDATA%\Krugmosh\home.txt,
+#             written by Krugmosh-Setup.exe). setup\build.ps1 embeds it in the installer.
+param([Parameter(Mandatory = $true)][ValidateSet("package", "portable", "install", "uninstall")] [string]$Action)
 
 $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.IO.Compression.FileSystem
@@ -49,28 +49,7 @@ function Test-Upia {
 
 switch ($Action) {
     "package" { New-Package }
-    "release" {
-        # GitHub release files: build\release\krugmosh.ccx + Krugmosh-Helper.zip
-        New-Package -Portable
-        $rel = Join-Path $build "release"
-        if (Test-Path $rel) { Get-ChildItem $rel | Remove-Item -Recurse -Force }
-        New-Item -ItemType Directory -Force $rel | Out-Null
-        Copy-Item $ccx (Join-Path $rel "krugmosh.ccx")
-        $repo = Split-Path -Parent $root
-        $h = Join-Path $build "helper\Krugmosh-Helper"
-        if (Test-Path (Split-Path $h)) { Remove-Item (Split-Path $h) -Recurse -Force }
-        New-Item -ItemType Directory -Force (Join-Path $h "app\scripts") | Out-Null
-        foreach ($f in "install-helper.bat", "uninstall.bat", "LICENSE") { Copy-Item (Join-Path $repo $f) $h }
-        foreach ($f in "mosh.py", "mosh_server.py", "objects.py", "target.py", "krugmosh_helper.pyw", "requirements.txt") {
-            Copy-Item (Join-Path $root $f) (Join-Path $h "app")
-        }
-        foreach ($f in "helper_tools.ps1", "install_helper.ps1", "plugin_tools.ps1") {
-            Copy-Item (Join-Path $PSScriptRoot $f) (Join-Path $h "app\scripts")
-        }
-        New-Zip $h (Join-Path $rel "Krugmosh-Helper.zip") -WithFolder
-        Write-Host "Release files in $rel"
-        Get-ChildItem $rel | ForEach-Object { Write-Host ("  {0}  {1:N0} KB" -f $_.Name, ($_.Length / 1KB)) }
-    }
+    "portable" { New-Package -Portable }
     "install" {
         Test-Upia
         New-Package

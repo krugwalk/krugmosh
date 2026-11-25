@@ -5,28 +5,21 @@ between them, click **MOSH IT**, and the moshed clip lands on the track above.
 
 ![Windows](https://img.shields.io/badge/platform-Windows-0078d4) ![Premiere Pro 25.6+](https://img.shields.io/badge/Premiere%20Pro-25.6%2B-9999ff) ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-## Install (permanent)
+## Install
 
-Needs Windows, **Premiere Pro 25.6+** and the **Creative Cloud app**. Get both files
-from the **[latest release](https://github.com/krugwalk/krugmosh/releases/latest)**.
+Needs Windows, **Premiere Pro 25.6+** and the **Creative Cloud app**.
 
-### 1. The panel: `krugmosh.ccx`
+1. Download **`Krugmosh-Setup.exe`** from the
+   **[latest release](https://github.com/krugwalk/krugmosh/releases/latest)**.
+2. Close Premiere Pro, run it and click **Install**.
+3. Open Premiere Pro, then **Window > UXP Plugins > Krugmosh**. The dot at the top
+   right of the panel should say **helper online**.
 
-Download **`krugmosh.ccx`** and double-click it. Creative Cloud opens and installs it
-like any Adobe Marketplace plugin. Restart Premiere Pro and open
-**Window > UXP Plugins > Krugmosh**. It stays installed for good.
-
-### 2. The helper: `Krugmosh-Helper.zip` (once)
-
-Premiere plugins aren't allowed to run programs like ffmpeg, so a small helper does
-the encoding. It only listens on `127.0.0.1` (your own computer).
-
-1. Download **`Krugmosh-Helper.zip`** and unzip it somewhere you'll keep it,
-   e.g. `C:\Tools\Krugmosh-Helper` (not Downloads). Don't move it afterwards.
-2. Double-click **`install-helper.bat`**. It installs Python 3 and ffmpeg if they're
-   missing (asks first), and starts the helper hidden, now and with every Windows start.
-
-The dot at the top right of the panel should now say **helper online**.
+The installer puts the panel into Premiere (through Adobe's own plugin installer),
+installs Python 3 and ffmpeg with winget if they're missing, and starts a small helper
+in the background, now and with every Windows start. Premiere plugins aren't allowed to
+run programs like ffmpeg, so the helper does the encoding; it only listens on
+`127.0.0.1` (your own computer). No admin rights needed.
 
 ## Use
 
@@ -39,29 +32,29 @@ Moshing looks best when the incoming clip has lots of movement.
 
 ## Update
 
-Double-click the new `krugmosh.ccx`. If the release says the helper changed too, unzip
-the new `Krugmosh-Helper.zip` over the old folder and run `install-helper.bat` again.
+Run the new `Krugmosh-Setup.exe` and click **Install** again.
 
 ## Uninstall
 
-Remove the panel in the Creative Cloud app (**Stock & Marketplace > Plugins > Manage
-plugins**), run `uninstall.bat` in the helper folder, then delete that folder.
+Run `Krugmosh-Setup.exe` and click **Uninstall**. It removes the panel, stops the helper
+and deletes its files. Python and ffmpeg are left installed.
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---|---|
 | Not under **Window > UXP Plugins** | Restart Premiere. It needs Premiere Pro 25.6 or newer. |
-| `krugmosh.ccx` won't install | Make sure the Creative Cloud app is installed and signed in, close Premiere, double-click it again. |
-| Panel says **helper offline** | Click **Start helper** in the panel, or run `install-helper.bat` again. Errors are in `app\helper.log` in the helper folder. |
-| `Could not find ffmpeg` | Run `install-helper.bat` again and let it install ffmpeg. |
-| You moved the helper folder | Run `install-helper.bat` again from the new place. |
+| Setup says Adobe's installer wasn't found | Install and sign in to the Creative Cloud app, close Premiere, run setup again. |
+| Panel install failed | Close Premiere Pro and click **Install** again. |
+| Panel says **helper offline** | Click **Start helper** in the panel, or run `Krugmosh-Setup.exe` again. Errors are in `%LOCALAPPDATA%\Krugmosh\helper\helper.log`. |
+| `Could not find ffmpeg` | Run `Krugmosh-Setup.exe` again; it installs ffmpeg if it's missing. |
 
 ### Building from source
 
-`powershell -File app\scripts\plugin_tools.ps1 release` builds both release files into
-`app\build\release`. `plugin_tools.ps1 install` installs the panel straight from this
-folder.
+`powershell -File setup\build.ps1` builds `build\Krugmosh-Setup.exe` (the panel and the
+helper are embedded; it only needs the C# compiler that ships with Windows).
+`powershell -File app\scripts\plugin_tools.ps1 install` installs just the panel straight
+from this folder.
 
 ## License
 

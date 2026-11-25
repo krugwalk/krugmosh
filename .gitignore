@@ -11,5 +11,5 @@ test-output/
 *.mov
 *.avi
 
-# packaged plugin (made by setup.bat)
+# packaged plugin (made by setup/build.ps1)
 build/

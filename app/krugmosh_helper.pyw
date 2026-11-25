@@ -2,8 +2,8 @@
 Krugmosh helper, windowless.
 
 Runs the helper (mosh_server.py) with no console window: double-click this file, or
-let install-helper.bat start it with Windows. Messages go to helper.log next to this file.
-uninstall.bat stops it.
+let Krugmosh-Setup.exe start it with Windows. Messages go to helper.log next to this file.
+Krugmosh-Setup.exe (Uninstall) stops it.
 """
 import os
 import sys
