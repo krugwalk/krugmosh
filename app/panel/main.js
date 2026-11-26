@@ -515,24 +515,14 @@ function renderPicker() {
     row.title = "Click to jump the playhead here";
     row.addEventListener("click", () => jumpTo(k));
 
-    // Drawn tick box that calls onPick directly. (A hidden <input> + synthetic "change"
-    // event didn't reach the handler reliably in Premiere once the list was rebuilt,
-    // so after All/Cuts/None the ticks looked stuck.)
-    const off = locked || state.busy;
-    const box = document.createElement("span");
-    box.className = "w7-check" + (picked ? " is-checked" : "") + (off ? " is-disabled" : "");
-    const mark = document.createElement("span");
-    mark.className = "w7-mark";
-    mark.textContent = "✔";
-    box.appendChild(mark);
-    box.title = locked ? "Always kept" : picked ? "Click to keep this keyframe" : "Click to remove this keyframe";
-    box.addEventListener("click", (e) => {
-      e.stopPropagation();          // ticking shouldn't jump the playhead
-      e.preventDefault();
-      if (locked || state.busy) return;
-      onPick(k, !state.picked.has(kfKey(k)));
-    });
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = picked;
+    box.disabled = locked || state.busy;
+    box.addEventListener("click", (e) => e.stopPropagation());  // ticking shouldn't jump
+    box.addEventListener("change", () => onPick(k, box.checked));
     row.appendChild(box);
+    if (window.w7Check) window.w7Check(box);   // Win7-style tick box
 
     const img = document.createElement("img");
     img.className = "kf-thumb";

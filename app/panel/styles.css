@@ -639,7 +639,7 @@ html, body { overflow: hidden; }
 }
 .kf.picked { border-left-color: var(--accent); background-color: #f2f8fe; }
 .kf.locked { opacity: 0.6; }
-.kf input, .kf .w7-check { margin-right: 6px; flex-shrink: 0; }
+.kf input { margin-right: 6px; }
 .kf:hover { background-color: #e5f3fb; }
 .kf.picked:hover { background-color: #dcecfc; }
 .kf.current { background-color: var(--sel-bg); outline: 1px solid var(--sel-border); }
